@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.0.6"
 UPDATE_CHECK_URL = "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -3355,42 +3355,7 @@ class MainWindow(QMainWindow):
         IS_DARK = not IS_DARK
         T.update(DARK if IS_DARK else LIGHT)
         self.theme_btn.setText("☀️  日间模式" if IS_DARK else "🌙  夜间模式")
-        self._rebuild_pages()
         self.apply_theme()
-
-    def _rebuild_pages(self):
-        """销毁并重建页面，确保所有内联样式用新主题重新渲染"""
-        cur = self._cur_tab
-        search_txt = self.page_prod.search.text()
-        cur_cat    = self.page_prod._cur_cat
-
-        self.stack.removeWidget(self.page_prod)
-        self.stack.removeWidget(self.page_print)
-        self.stack.removeWidget(self.page_cust)
-        self.stack.removeWidget(self.page_stats)
-        self.page_prod.deleteLater()
-        self.page_print.deleteLater()
-        self.page_cust.deleteLater()
-        self.page_stats.deleteLater()
-
-        self.page_prod  = ProductPage()
-        self.page_print = PrintPage()
-        self.page_cust  = CustomerPage()
-        self.page_stats = StatsPage()
-        self.stack.addWidget(self.page_prod)
-        self.stack.addWidget(self.page_print)
-        self.stack.addWidget(self.page_cust)
-        self.stack.addWidget(self.page_stats)
-        self.page_prod.status_sig.connect(self.status_lbl.setText)
-        self.page_prod.data_changed.connect(self.page_stats.refresh)
-        self.page_prod.print_changed.connect(self.page_print.refresh)
-        self.page_print.status_sig.connect(self.status_lbl.setText)
-        self.page_cust.status_sig.connect(self.status_lbl.setText)
-
-        # 恢复搜索和分类状态
-        self.page_prod.search.setText(search_txt)
-        self.page_prod._set_cat(cur_cat)
-        self._switch_tab(cur)
 
     def apply_theme(self):
         qss = make_qss()
