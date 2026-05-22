@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 UPDATE_CHECK_URL = "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -3356,7 +3356,7 @@ class MainWindow(QMainWindow):
         global IS_DARK, T
         IS_DARK = not IS_DARK
         T.update(DARK if IS_DARK else LIGHT)
-        self.theme_btn.setText("🌙  夜间模式" if IS_DARK else "☀️  日间模式")
+        self.theme_btn.setText("☀️  日间模式" if IS_DARK else "🌙  夜间模式")
         self._rebuild_pages()
         self.apply_theme()
 
