@@ -1,0 +1,19 @@
+# 数据库（每个用户独立）
+hardware_store.db
+
+# 临时文件
+*.log
+__pycache__/
+*.pyc
+
+# 打包产物
+build/
+dist/
+*.exe
+
+# 产品图片（体积大，按需提交）
+product_images/
+
+# IDE
+.vscode/
+.idea/
