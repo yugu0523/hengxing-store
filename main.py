@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.15"
+APP_VERSION = "1.0.16"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -2703,9 +2703,10 @@ class CustomerPage(QWidget):
         rows = db_customers()
         self.table.setRowCount(len(rows))
         for r, row in enumerate(rows):
-            self.table.setItem(r, 0, QTableWidgetItem(row[1] or ""))
-            self.table.setItem(r, 1, QTableWidgetItem(row[2] or ""))
-            self.table.setItem(r, 2, QTableWidgetItem(row[3] or ""))
+            for c, val in enumerate([row[1] or "", row[2] or "", row[3] or ""]):
+                it = QTableWidgetItem(val)
+                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(r, c, it)
         self._toggle_empty()
 
     def _on_add(self):

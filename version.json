@@ -1,5 +1,5 @@
 {
-    "version": "1.0.15",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.15/default.exe",
-    "notes": "1. 更新前弹窗提示是否更新\n2. 下载进度条显示在页面底部（粉色）\n3. 下载完成后可一键重启更新\n4. 增加 GitHub API 作为更新检测备用源，提高可靠性"
+    "version": "1.0.16",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.16/default.exe",
+    "notes": "客户管理表格字段全部居中显示"
 }
