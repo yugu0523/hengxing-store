@@ -17,7 +17,7 @@ from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
 APP_VERSION = "1.0.0"
-UPDATE_CHECK_URL = ""  # 填入你的 version.json 在线地址，如 GitHub Raw 链接
+UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/main/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
 #  自动更新
