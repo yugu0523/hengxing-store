@@ -1,5 +1,5 @@
 {
-    "version": "1.0.13",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.13/default.exe",
-    "notes": "1. 更新下载改为后台进行，不阻塞使用\n2. 客户管理支持双击进入编辑"
+    "version": "1.0.14",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.14/default.exe",
+    "notes": "1. 更新前弹窗提示是否更新\n2. 下载进度条显示在页面底部（粉色）\n3. 下载完成后可一键重启更新"
 }

@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.13"
+APP_VERSION = "1.0.14"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -3414,22 +3414,48 @@ class MainWindow(QMainWindow):
         remote_ver = info.get("version", "0.0.0")
         if _version_tuple(remote_ver) > _version_tuple(APP_VERSION):
             self._update_info = info
-            self.status_lbl.setText(f"发现新版本 v{remote_ver}，正在后台下载...")
-            # 直接开始后台下载
-            self._downloader = UpdateChecker(mode="download", url=info.get("download_url", ""))
-            self._downloader.progress.connect(self._on_download_progress)
-            self._downloader.finished_ok.connect(self._on_download_done)
-            self._downloader.failed.connect(self._on_download_fail)
-            self._downloader.start()
+            # 弹窗询问是否更新
+            ret = QMessageBox.question(
+                self, "发现新版本",
+                f"新版本 v{remote_ver} 可用\n\n{info.get('notes', '')}\n\n是否立即更新？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes)
+            if ret == QMessageBox.StandardButton.Yes:
+                self._start_download()
+
+    def _start_download(self):
+        """开始后台下载，底部显示粉色进度条"""
+        from PyQt6.QtWidgets import QProgressBar
+        # 创建底部进度条
+        if not hasattr(self, "_dl_bar"):
+            self._dl_bar = QProgressBar()
+            self._dl_bar.setFixedHeight(4)
+            self._dl_bar.setTextVisible(False)
+            self._dl_bar.setStyleSheet(
+                f"QProgressBar{{background:{t('border')};border:0;}}"
+                f"QProgressBar::chunk{{background:{t('accent')};}}")
+            self.centralWidget().layout().insertWidget(3, self._dl_bar)
+        self._dl_bar.setValue(0)
+        self._dl_bar.show()
+        self.status_lbl.setText("正在下载更新...")
+        # 启动下载
+        self._downloader = UpdateChecker(mode="download", url=self._update_info.get("download_url", ""))
+        self._downloader.progress.connect(self._on_download_progress)
+        self._downloader.finished_ok.connect(self._on_download_done)
+        self._downloader.failed.connect(self._on_download_fail)
+        self._downloader.start()
 
     def _on_download_progress(self, pct):
-        ver = self._update_info.get("version", "") if hasattr(self, "_update_info") else ""
-        self.status_lbl.setText(f"正在下载 v{ver}：{pct}%")
+        if hasattr(self, "_dl_bar"):
+            self._dl_bar.setValue(pct)
+        self.status_lbl.setText(f"正在下载更新：{pct}%")
 
     def _on_download_done(self, tmp_path):
         self._update_tmp = tmp_path
+        if hasattr(self, "_dl_bar"):
+            self._dl_bar.hide()
         ver = self._update_info.get("version", "") if hasattr(self, "_update_info") else ""
-        self.status_lbl.setText(f"v{ver} 更新已就绪")
+        self.status_lbl.setText(f"v{ver} 更新已就绪，重启后生效")
         # 状态栏添加重启按钮
         if not hasattr(self, "_restart_btn"):
             self._restart_btn = QPushButton("立即重启更新")
@@ -3439,6 +3465,7 @@ class MainWindow(QMainWindow):
                 f"QPushButton:hover{{background:{t('accent_h')};}}")
             self._restart_btn.clicked.connect(self._apply_update)
             self.statusbar_frame.layout().insertWidget(2, self._restart_btn)
+        self._restart_btn.show()
 
     def _on_download_fail(self, err):
         self.status_lbl.setText(f"更新下载失败: {err}")
