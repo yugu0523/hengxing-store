@@ -16,8 +16,8 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.6"
-UPDATE_CHECK_URL = "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json"
+APP_VERSION = "1.0.7"
+UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
 #  自动更新（基于 PowerShell，不依赖 urllib/email 等模块）
@@ -60,11 +60,23 @@ class UpdateChecker(QThread):
             self.failed.emit(str(e))
 
     def _do_check(self):
-        url = self.url + ("&" if "?" in self.url else "?") + "t=" + str(int(__import__("time").time()))
-        script = f"(Invoke-WebRequest -Uri '{url}' -UseBasicParsing -TimeoutSec 10).Content"
-        content = _ps_run(script)
-        data = json.loads(content)
-        self.checked.emit(data)
+        ts = str(int(__import__("time").time()))
+        urls = [
+            self.url + ("&" if "?" in self.url else "?") + "t=" + ts,
+            "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json?t=" + ts,
+        ]
+        for url in urls:
+            try:
+                script = f"(Invoke-WebRequest -Uri '{url}' -UseBasicParsing -TimeoutSec 10).Content"
+                content = _ps_run(script)
+                if content:
+                    data = json.loads(content)
+                    if "version" in data:
+                        self.checked.emit(data)
+                        return
+            except Exception:
+                continue
+        self.failed.emit("所有更新源均不可达")
 
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
