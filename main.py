@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.17"
+APP_VERSION = "1.0.18"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1152,10 +1152,10 @@ QTableWidget {{ background:{t('card')}; border:none;
                 gridline-color:{t('border')}; outline:none;
                 font-size:13px; color:{t('text')}; }}
 QTableWidget::item {{ padding:0 12px; border-bottom:1px solid {t('border')}; }}
-QTableWidget::item:selected {{ background:{t('sel')}; border-bottom:1px solid {t('accent')}; }}
-QTableWidget::item:selected:!active {{ background:{t('sel')}; border-bottom:1px solid {t('accent')}; }}
-QTableWidget::item:alternate:selected {{ background:{t('sel')}; border-bottom:1px solid {t('accent')}; }}
-QTableWidget::item:alternate:selected:!active {{ background:{t('sel')}; border-bottom:1px solid {t('accent')}; }}
+QTableWidget::item:selected {{ background:{t('sel')}; color:{t('text')}; border-bottom:1px solid {t('accent')}; }}
+QTableWidget::item:selected:!active {{ background:{t('sel')}; color:{t('text')}; border-bottom:1px solid {t('accent')}; }}
+QTableWidget::item:alternate:selected {{ background:{t('sel')}; color:{t('text')}; border-bottom:1px solid {t('accent')}; }}
+QTableWidget::item:alternate:selected:!active {{ background:{t('sel')}; color:{t('text')}; border-bottom:1px solid {t('accent')}; }}
 QTableWidget::item:alternate {{ background:{t('row_alt')}; }}
 QHeaderView::section {{ background:{t('card2')}; color:{t('text_mid')};
                          font-size:12px; font-weight:600; padding:0 12px;
