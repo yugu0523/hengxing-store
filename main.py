@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 UPDATE_CHECK_URL = "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -60,18 +60,15 @@ class UpdateChecker(QThread):
             self.failed.emit(str(e))
 
     def _do_check(self):
-        ua = "恒星五金记账系统/" + APP_VERSION
         url = self.url + ("&" if "?" in self.url else "?") + "t=" + str(int(__import__("time").time()))
-        script = f"(Invoke-WebRequest -Uri '{url}' -Headers @{{'User-Agent'='{ua}'}} -UseBasicParsing -TimeoutSec 10).Content"
+        script = f"(Invoke-WebRequest -Uri '{url}' -UseBasicParsing -TimeoutSec 10).Content"
         content = _ps_run(script)
         data = json.loads(content)
         self.checked.emit(data)
 
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
-        ua = "恒星五金记账系统/" + APP_VERSION
-        # 下载文件
-        script = f"(New-Object System.Net.WebClient).Headers.Add('User-Agent','{ua}'); (New-Object System.Net.WebClient).DownloadFile('{self.url}','{tmp.replace(chr(92),chr(92)+chr(92))}')"
+        script = f"(New-Object System.Net.WebClient).DownloadFile('{self.url}','{tmp.replace(chr(92),chr(92)+chr(92))}')"
         _ps_run(script, timeout=300)
         if not os.path.exists(tmp):
             raise RuntimeError("下载失败：文件未生成")
