@@ -16,26 +16,26 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.8"
+APP_VERSION = "1.0.9"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
-#  自动更新（基于 PowerShell，不依赖 urllib/email 等模块）
+#  自动更新（基于 curl，Windows 10+ 自带，无需 PowerShell）
 # ══════════════════════════════════════════════════════════════════════
 import json, tempfile, subprocess
 
 def _version_tuple(v):
     return tuple(int(x) for x in v.split("."))
 
-def _ps_run(script, timeout=300):
-    """执行 PowerShell 脚本并返回 stdout"""
+def _curl(args, timeout=300):
+    """执行 curl 命令并返回 stdout"""
     r = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-        capture_output=True, text=True, timeout=timeout,
+        ["curl", "-sL", "--max-time", str(timeout)] + args,
+        capture_output=True, timeout=timeout + 10,
         creationflags=subprocess.CREATE_NO_WINDOW
     )
     if r.returncode != 0:
-        raise RuntimeError(r.stderr.strip() or f"PowerShell exit {r.returncode}")
+        raise RuntimeError(f"curl exit {r.returncode}")
     return r.stdout
 
 class UpdateChecker(QThread):
@@ -67,10 +67,10 @@ class UpdateChecker(QThread):
         ]
         for url in urls:
             try:
-                script = f"(Invoke-WebRequest -Uri '{url}' -UseBasicParsing -TimeoutSec 10).Content"
-                content = _ps_run(script)
-                if content:
-                    data = json.loads(content)
+                raw = _curl(["--connect-timeout", "10", url], timeout=15)
+                if raw:
+                    text = raw.decode("utf-8", errors="replace")
+                    data = json.loads(text)
                     if "version" in data:
                         self.checked.emit(data)
                         return
@@ -80,8 +80,7 @@ class UpdateChecker(QThread):
 
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
-        script = f"(New-Object System.Net.WebClient).DownloadFile('{self.url}','{tmp.replace(chr(92),chr(92)+chr(92))}')"
-        _ps_run(script, timeout=300)
+        _curl(["-o", tmp, self.url], timeout=300)
         if not os.path.exists(tmp):
             raise RuntimeError("下载失败：文件未生成")
         self.progress.emit(100)
