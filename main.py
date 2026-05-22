@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.9"
+APP_VERSION = "1.0.10"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1683,7 +1683,7 @@ class ProductPage(QWidget):
         left.addWidget(icon_badge("📦", t('ic_blue'), 48, 14))
         ic = QVBoxLayout(); ic.setSpacing(3)
         h1 = QLabel("商品管理")
-        h1.setStyleSheet(f"font-size:17px;font-weight:700;color:{t('text')};")
+        h1.setStyleSheet("font-size:17px;font-weight:700;")
         ic.addWidget(h1)
         left.addLayout(ic)
         hl.addLayout(left); hl.addStretch()
@@ -2579,7 +2579,7 @@ class CustomerPage(QWidget):
         left.addWidget(icon_badge("🙋", t('ic_blue'), 48, 14))
         ic = QVBoxLayout(); ic.setSpacing(3)
         h1 = QLabel("客户管理")
-        h1.setStyleSheet(f"font-size:17px;font-weight:700;color:{t('text')};")
+        h1.setStyleSheet("font-size:17px;font-weight:700;")
         ic.addWidget(h1)
         left.addLayout(ic)
         hl.addLayout(left); hl.addStretch()
@@ -2826,7 +2826,7 @@ class PrintPage(QWidget):
         left.addWidget(icon_badge("🧾", t('ic_orange'), 48, 14))
         ic = QVBoxLayout(); ic.setSpacing(3)
         h1 = QLabel("账单打印")
-        h1.setStyleSheet(f"font-size:17px;font-weight:700;color:{t('text')};")
+        h1.setStyleSheet("font-size:17px;font-weight:700;")
         ic.addWidget(h1)
         left.addLayout(ic)
         hl.addLayout(left)
