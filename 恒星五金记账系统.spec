@@ -12,7 +12,7 @@ a = Analysis(
     # 排除不需要的大库，减小体积
     excludes=['matplotlib', 'numpy', 'pandas', 'scipy', 'PIL',
               'tkinter', 'unittest', 'email', 'html', 'http',
-              'xml', 'xmlrpc', 'multiprocessing'],
+              'urllib', 'xml', 'xmlrpc', 'multiprocessing'],
     noarchive=False,
     optimize=1,
 )
@@ -28,7 +28,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,

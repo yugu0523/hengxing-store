@@ -20,12 +20,23 @@ APP_VERSION = "1.0.1"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
-#  自动更新
+#  自动更新（基于 PowerShell，不依赖 urllib/email 等模块）
 # ══════════════════════════════════════════════════════════════════════
-import json, urllib.request, tempfile, subprocess
+import json, tempfile, subprocess
 
 def _version_tuple(v):
     return tuple(int(x) for x in v.split("."))
+
+def _ps_run(script, timeout=300):
+    """执行 PowerShell 脚本并返回 stdout"""
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+        capture_output=True, text=True, timeout=timeout,
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip() or f"PowerShell exit {r.returncode}")
+    return r.stdout
 
 class UpdateChecker(QThread):
     """后台线程：检查更新 / 下载更新"""
@@ -49,26 +60,21 @@ class UpdateChecker(QThread):
             self.failed.emit(str(e))
 
     def _do_check(self):
-        req = urllib.request.Request(self.url, headers={"User-Agent": "恒星五金记账系统/" + APP_VERSION})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        ua = "恒星五金记账系统/" + APP_VERSION
+        script = f"(Invoke-WebRequest -Uri '{self.url}' -Headers @{{'User-Agent'='{ua}'}} -UseBasicParsing -TimeoutSec 10).Content"
+        content = _ps_run(script)
+        data = json.loads(content)
         self.checked.emit(data)
 
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
-        req = urllib.request.Request(self.url, headers={"User-Agent": "恒星五金记账系统/" + APP_VERSION})
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            total = int(resp.headers.get("Content-Length", 0))
-            downloaded = 0
-            with open(tmp, "wb") as f:
-                while True:
-                    chunk = resp.read(8192)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total > 0:
-                        self.progress.emit(int(downloaded * 100 / total))
+        ua = "恒星五金记账系统/" + APP_VERSION
+        # 下载文件
+        script = f"(New-Object System.Net.WebClient).Headers.Add('User-Agent','{ua}'); (New-Object System.Net.WebClient).DownloadFile('{self.url}','{tmp.replace(chr(92),chr(92)+chr(92))}')"
+        _ps_run(script, timeout=300)
+        if not os.path.exists(tmp):
+            raise RuntimeError("下载失败：文件未生成")
+        self.progress.emit(100)
         self.finished_ok.emit(tmp)
 
 
