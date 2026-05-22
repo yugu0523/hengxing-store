@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.10"
+APP_VERSION = "1.0.12"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -80,9 +80,62 @@ class UpdateChecker(QThread):
 
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
-        _curl(["-o", tmp, self.url], timeout=300)
-        if not os.path.exists(tmp):
-            raise RuntimeError("下载失败：文件未生成")
+        for f in [tmp] + [tmp + f".part{i}" for i in range(4)]:
+            if os.path.exists(f):
+                os.remove(f)
+        # 获取文件总大小
+        r = subprocess.run(
+            ["curl", "-sL", "-I", "--connect-timeout", "15", "--max-time", "15", self.url],
+            capture_output=True, timeout=20, creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        total = 0
+        for line in r.stdout.decode("utf-8", errors="replace").splitlines():
+            if line.lower().startswith("content-length:"):
+                total = int(line.split(":", 1)[1].strip())
+                break
+        # 4线程并行下载
+        parts = [tmp + f".part{i}" for i in range(4)]
+        procs = []
+        if total > 0:
+            chunk = total // 4
+            for i in range(4):
+                start = i * chunk
+                end = total - 1 if i == 3 else (i + 1) * chunk - 1
+                p = subprocess.Popen(
+                    ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
+                     "-r", f"{start}-{end}", "-o", parts[i], self.url],
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                procs.append(p)
+        else:
+            p = subprocess.Popen(
+                ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600", "-o", tmp, self.url],
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            procs.append(p)
+        # 实时监控进度
+        while any(p.poll() is None for p in procs):
+            downloaded = 0
+            for part in parts:
+                try:
+                    downloaded += os.path.getsize(part)
+                except OSError:
+                    pass
+            if total > 0:
+                self.progress.emit(min(int(downloaded * 100 / total), 99))
+            __import__("time").sleep(0.3)
+        # 检查是否全部成功
+        if any(p.returncode != 0 for p in procs):
+            raise RuntimeError("下载失败")
+        # 合并分片
+        if total > 0:
+            with open(tmp, "wb") as out:
+                for part in parts:
+                    with open(part, "rb") as inp:
+                        out.write(inp.read())
+                    os.remove(part)
+        if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+            raise RuntimeError("下载失败：文件不完整")
         self.progress.emit(100)
         self.finished_ok.emit(tmp)
 
