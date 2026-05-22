@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.16"
+APP_VERSION = "1.0.17"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -60,6 +60,22 @@ class UpdateChecker(QThread):
             self.failed.emit(str(e))
 
     def _do_check(self):
+        # ── 优先检查本地测试文件 ──
+        app_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
+        test_file = os.path.join(app_dir, "version_test.json")
+        if os.path.exists(test_file):
+            try:
+                with open(test_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if "version" in data:
+                    data["_test_mode"] = True  # 标记为测试模式
+                    if not data.get("download_url"):
+                        data["download_url"] = ""  # 空 URL → 模拟下载
+                    self.checked.emit(data)
+                    return
+            except Exception:
+                pass  # 测试文件损坏，继续走远程检查
+
         import base64
         ts = str(int(__import__("time").time()))
         urls = [
@@ -89,159 +105,608 @@ class UpdateChecker(QThread):
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
         for f in [tmp] + [tmp + f".part{i}" for i in range(4)]:
-            if os.path.exists(f):
-                os.remove(f)
-        # 获取文件总大小
-        r = subprocess.run(
-            ["curl", "-sL", "-I", "--connect-timeout", "15", "--max-time", "15", self.url],
-            capture_output=True, timeout=20, creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        total = 0
-        for line in r.stdout.decode("utf-8", errors="replace").splitlines():
-            if line.lower().startswith("content-length:"):
-                total = int(line.split(":", 1)[1].strip())
-                break
-        # 4线程并行下载
-        parts = [tmp + f".part{i}" for i in range(4)]
-        procs = []
-        if total > 0:
-            chunk = total // 4
-            for i in range(4):
-                start = i * chunk
-                end = total - 1 if i == 3 else (i + 1) * chunk - 1
-                p = subprocess.Popen(
-                    ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
-                     "-r", f"{start}-{end}", "-o", parts[i], self.url],
+            try:
+                if os.path.exists(f):
+                    os.remove(f)
+            except OSError:
+                pass
+
+        url = self.url
+        last_err = ""
+
+        # ── 构建下载 fallback URL 列表 ──
+        dl_urls = [url]
+        # 如果主 URL 是 GitHub Release，尝试 jsDelivr CDN 镜像
+        if "github.com" in url and "/releases/download/" in url:
+            # 提取 tag 和文件名
+            # e.g. https://github.com/u/r/releases/download/v1.0.16/default.exe
+            import re
+            m = re.search(r'/releases/download/([^/]+)/([^/]+)$', url)
+            if m:
+                tag, fname = m.group(1), m.group(2)
+                dl_urls.append(
+                    f"https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@{tag}/{fname}"
+                )
+
+        # ── 带重试的下载循环 ──
+        for attempt in range(3):
+            if attempt > 0:
+                __import__("time").sleep(2 * attempt)  # 2s, 4s 递增等待
+
+            dl_url = dl_urls[min(attempt, len(dl_urls) - 1)]
+
+            try:
+                # 获取文件总大小
+                total = 0
+                r = subprocess.run(
+                    ["curl", "-sL", "-I", "--connect-timeout", "15", "--max-time", "15", dl_url],
+                    capture_output=True, timeout=20,
                     creationflags=subprocess.CREATE_NO_WINDOW
                 )
-                procs.append(p)
-        else:
-            p = subprocess.Popen(
-                ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600", "-o", tmp, self.url],
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            procs.append(p)
-        # 实时监控进度
-        while any(p.poll() is None for p in procs):
-            downloaded = 0
-            for part in parts:
-                try:
-                    downloaded += os.path.getsize(part)
-                except OSError:
-                    pass
-            if total > 0:
-                self.progress.emit(min(int(downloaded * 100 / total), 99))
-            __import__("time").sleep(0.3)
-        # 检查是否全部成功
-        if any(p.returncode != 0 for p in procs):
-            raise RuntimeError("下载失败")
-        # 合并分片
-        if total > 0:
-            with open(tmp, "wb") as out:
-                for part in parts:
-                    with open(part, "rb") as inp:
-                        out.write(inp.read())
-                    os.remove(part)
-        if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
-            raise RuntimeError("下载失败：文件不完整")
-        self.progress.emit(100)
-        self.finished_ok.emit(tmp)
+                if r.returncode == 0:
+                    for line in r.stdout.decode("utf-8", errors="replace").splitlines():
+                        if line.lower().startswith("content-length:"):
+                            total = int(line.split(":", 1)[1].strip())
+                            break
+
+                # 4线程并行下载
+                parts = [tmp + f".part{i}" for i in range(4)]
+                procs = []
+                if total > 0:
+                    chunk = total // 4
+                    for i in range(4):
+                        start = i * chunk
+                        end = total - 1 if i == 3 else (i + 1) * chunk - 1
+                        p = subprocess.Popen(
+                            ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
+                             "-r", f"{start}-{end}", "-o", parts[i], dl_url],
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+                        procs.append(p)
+                else:
+                    p = subprocess.Popen(
+                        ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
+                         "-o", tmp, dl_url],
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
+                    procs.append(p)
+
+                # 实时监控进度
+                while any(p.poll() is None for p in procs):
+                    downloaded = 0
+                    for part in parts:
+                        try:
+                            downloaded += os.path.getsize(part)
+                        except OSError:
+                            pass
+                    if total > 0:
+                        self.progress.emit(min(int(downloaded * 100 / total), 99))
+                    __import__("time").sleep(0.3)
+
+                # 检查是否全部成功
+                if any(p.returncode != 0 for p in procs):
+                    raise RuntimeError(f"curl 进程异常退出 (返回码: {[p.returncode for p in procs]})")
+
+                # 合并分片
+                if total > 0:
+                    with open(tmp, "wb") as out:
+                        for part in parts:
+                            with open(part, "rb") as inp:
+                                out.write(inp.read())
+                            os.remove(part)
+
+                if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+                    raise RuntimeError("下载完成但文件为空")
+
+                self.progress.emit(100)
+                self.finished_ok.emit(tmp)
+                return  # 成功
+
+            except Exception as e:
+                last_err = f"{dl_url[:60]}... → {e}"
+                # 清理残留文件
+                for f in [tmp] + [tmp + f".part{i}" for i in range(4)]:
+                    try:
+                        if os.path.exists(f):
+                            os.remove(f)
+                    except OSError:
+                        pass
+                continue  # 重试
+
+        # 所有尝试均失败
+        self.failed.emit(last_err or "下载失败：所有 URL 均不可达")
 
 
 class UpdateDialog(QDialog):
-    """发现新版本的提示对话框"""
-    def __init__(self, info, parent=None):
+    """发现新版本的提示对话框 —— 跟随系统主题"""
+    def __init__(self, info, parent=None, test_mode=False):
         super().__init__(parent)
         self.setWindowTitle("发现新版本")
-        self.setFixedSize(460, 340)
+        self.setMinimumSize(440, 320)
+        self.resize(480, 400)
         self._info = info
+        self._test_mode = test_mode  # 测试模式：跳过真实下载，模拟进度
+        self._downloader = None
+        self._sim_timer = None
+        self._sim_pct = 0
         self._build_ui()
+        self._apply_theme()
 
     def _build_ui(self):
-        lay = QVBoxLayout(self); lay.setContentsMargins(28,24,28,24); lay.setSpacing(14)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(32, 28, 32, 28)
+        lay.setSpacing(16)
 
-        title = QLabel(f"  新版本 {self._info.get('version','')} 可用")
-        title.setStyleSheet("font-size:18px;font-weight:700;color:#333;")
-        lay.addWidget(title)
+        # ── 标题行 ──
+        title_row = QHBoxLayout()
+        # （图标已移除）
+        self._title_lbl = QLabel(f"发现新版本")
+        self._title_lbl.setStyleSheet("font-size:20px;font-weight:700;")
+        title_row.addWidget(self._title_lbl)
+        title_row.addStretch()
+        lay.addLayout(title_row)
 
-        if self._info.get("notes"):
-            notes = QLabel(self._info["notes"])
-            notes.setWordWrap(True)
-            notes.setStyleSheet("font-size:13px;color:#555;background:#f8f8f8;border:1px solid #e0e0e0;border-radius:8px;padding:12px;")
-            notes.setMinimumHeight(100)
-            lay.addWidget(notes)
+        # ── 版本号 ──
+        ver = self._info.get("version", "")
+        self._ver_lbl = QLabel(f"v{ver} 现已可用")
+        self._ver_lbl.setStyleSheet("font-size:28px;font-weight:700;")
+        self._ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._ver_lbl)
+
+        # ── 更新日志卡片 ──
+        notes_text = self._info.get("notes", "").strip()
+        if notes_text:
+            card = QFrame()
+            card.setObjectName("updateNotesCard")
+            card_lay = QVBoxLayout(card)
+            card_lay.setContentsMargins(16, 14, 16, 14)
+            card_lay.setSpacing(6)
+            notes_header = QLabel("更新内容")
+            notes_header.setStyleSheet("font-size:13px;font-weight:600;")
+            card_lay.addWidget(notes_header)
+            notes_body = QLabel(notes_text)
+            notes_body.setWordWrap(True)
+            notes_body.setStyleSheet("font-size:13px;")
+            card_lay.addWidget(notes_body)
+            lay.addWidget(card)
+            self._notes_card = card
+        else:
+            self._notes_card = None
 
         lay.addStretch()
 
+        # ── 进度区域 ──
         self._progress_lbl = QLabel("")
-        self._progress_lbl.setStyleSheet("font-size:12px;color:#888;")
+        self._progress_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._progress_lbl.setStyleSheet("font-size:12px;")
+        self._progress_lbl.hide()
         lay.addWidget(self._progress_lbl)
 
         from PyQt6.QtWidgets import QProgressBar
         self._progress_bar = QProgressBar()
         self._progress_bar.setFixedHeight(6)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setStyleSheet("QProgressBar{background:#eee;border:0;border-radius:3px;}QProgressBar::chunk{background:#fb7299;border-radius:3px;}")
         self._progress_bar.setValue(0)
         self._progress_bar.hide()
         lay.addWidget(self._progress_bar)
 
-        btn_row = QHBoxLayout(); btn_row.setSpacing(12)
+        # ── 按钮行 ──
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
         self._skip_btn = QPushButton("跳过此版本")
-        self._skip_btn.setStyleSheet("QPushButton{background:transparent;color:#888;border:1px solid #ddd;border-radius:6px;padding:8px 20px;font-size:13px;}QPushButton:hover{background:#f5f5f5;}")
+        self._skip_btn.setObjectName("updateSkipBtn")
+        self._skip_btn.setFixedHeight(38)
         self._skip_btn.clicked.connect(self.reject)
-        self._update_btn = QPushButton("  立即更新")
-        self._update_btn.setStyleSheet("QPushButton{background:#fb7299;color:white;border:0;border-radius:6px;padding:8px 24px;font-size:13px;font-weight:600;}QPushButton:hover{background:#e05a7a;}")
+        self._update_btn = QPushButton("立即更新")
+        self._update_btn.setObjectName("updateBtn")
+        self._update_btn.setFixedHeight(38)
         self._update_btn.clicked.connect(self._start_update)
-        btn_row.addWidget(self._skip_btn); btn_row.addStretch(); btn_row.addWidget(self._update_btn)
+        btn_row.addWidget(self._skip_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(self._update_btn)
         lay.addLayout(btn_row)
 
+    def _apply_theme(self):
+        """应用当前主题色"""
+        bg = t("bg")
+        surface = t("surface")
+        card_bg = t("card2")
+        border = t("border")
+        text_color = t("text")
+        text_sub = t("text_sub")
+        accent = t("accent")
+        accent_h = t("accent_h")
+
+        self.setStyleSheet(f"""
+            UpdateDialog {{
+                background: {surface};
+            }}
+            #updateNotesCard {{
+                background: {card_bg};
+                border: 1px solid {border};
+                border-radius: 10px;
+            }}
+            #updateSkipBtn {{
+                background: {t('btn2_bg')};
+                color: {t('btn2_text')};
+                border: 1px solid {border};
+                border-radius: 8px;
+                padding: 8px 22px;
+                font-size: 13px;
+            }}
+            #updateSkipBtn:hover {{
+                background: {t('btn2_hover')};
+            }}
+            #updateBtn {{
+                background: {accent};
+                color: white;
+                border: 0;
+                border-radius: 8px;
+                padding: 8px 28px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            #updateBtn:hover {{
+                background: {accent_h};
+            }}
+            #updateBtn:disabled {{
+                background: {border};
+                color: {text_sub};
+            }}
+        """)
+
+        self._title_lbl.setStyleSheet(f"font-size:20px;font-weight:700;color:{text_color};")
+        self._ver_lbl.setStyleSheet(f"font-size:28px;font-weight:700;color:{accent};")
+        self._progress_lbl.setStyleSheet(f"font-size:12px;color:{text_sub};")
+        self._progress_bar.setStyleSheet(f"""
+            QProgressBar{{
+                background:{card_bg};
+                border:0;
+                border-radius:3px;
+            }}
+            QProgressBar::chunk{{
+                background:{accent};
+                border-radius:3px;
+            }}
+        """)
+
     def _start_update(self):
+        """用户点击「立即更新」→ 开始下载，显示进度"""
         self._skip_btn.setEnabled(False)
         self._update_btn.setEnabled(False)
         self._update_btn.setText("下载中...")
         self._progress_bar.show()
-        self._downloader = UpdateChecker(mode="download", url=self._info.get("download_url", ""))
+        self._progress_lbl.show()
+        self._progress_bar.setValue(0)
+
+        url = self._info.get("download_url", "")
+        if self._test_mode or not url:
+            # 测试模式：模拟下载进度
+            self._sim_pct = 0
+            self._sim_timer = QTimer()
+            self._sim_timer.timeout.connect(self._sim_tick)
+            self._sim_timer.start(30)
+            return
+
+        # 正常模式：后台线程下载
+        self._downloader = UpdateChecker(mode="download", url=url)
         self._downloader.progress.connect(self._on_progress)
         self._downloader.finished_ok.connect(self._on_done)
         self._downloader.failed.connect(self._on_fail)
         self._downloader.start()
 
+    def _sim_tick(self):
+        """模拟下载进度（仅测试模式）"""
+        self._sim_pct += 2
+        if self._sim_pct >= 100:
+            self._sim_pct = 100
+            self._sim_timer.stop()
+        self._progress_bar.setValue(self._sim_pct)
+        self._progress_lbl.setText(f"已下载 {self._sim_pct}%")
+        if self._sim_pct >= 100:
+            self._progress_lbl.setText("下载完成，正在替换...")
+            QTimer.singleShot(500, self._sim_done)
+
+    def _sim_done(self):
+        """模拟下载完成 → 用当前 exe 替换自身（测试完整流程）"""
+        self._apply_update_static(
+            os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)
+        )
+
     def _on_progress(self, pct):
+        """真实下载进度回调"""
         self._progress_bar.setValue(pct)
         self._progress_lbl.setText(f"已下载 {pct}%")
 
     def _on_done(self, tmp_path):
-        self._progress_lbl.setText("下载完成，正在替换...")
-        self._apply_update_static(tmp_path)
-        self.accept()
+        """下载完成 → 更新按钮为「立即重启」"""
+        self._tmp_path = tmp_path
+        self._progress_bar.setValue(100)
+        self._progress_lbl.setText("下载完成，请重启应用以完成更新")
+        self._update_btn.setEnabled(True)
+        self._update_btn.setText("立即重启")
+        try:
+            self._update_btn.clicked.disconnect()
+        except Exception:
+            pass
+        self._update_btn.clicked.connect(self._do_restart)
+        self._skip_btn.setEnabled(True)
+        self._skip_btn.setText("稍后重启")
+        try:
+            self._skip_btn.clicked.disconnect()
+        except Exception:
+            pass
+        self._skip_btn.clicked.connect(self.reject)
+        # 将窗口提到最前，提示用户
+        self.raise_()
+        self.activateWindow()
 
     def _on_fail(self, err):
+        """下载失败 → 允许重试"""
+        self._sim_timer = None
         self._skip_btn.setEnabled(True)
         self._update_btn.setEnabled(True)
         self._update_btn.setText("重试")
         self._progress_lbl.setText(f"下载失败: {err}")
-        self._progress_bar.hide()
+        self._progress_bar.setStyleSheet(f"""
+            QProgressBar{{background:{t('card2')};border:0;border-radius:3px;}}
+            QProgressBar::chunk{{background:{t('danger')};border-radius:3px;}}
+        """)
+
+    def _do_restart(self):
+        """执行替换并重启"""
+        self._apply_update_static(self._tmp_path)
 
     @staticmethod
     def _apply_update_static(new_exe):
         """写批处理脚本，等当前进程退出后替换 exe 并重启"""
         current_exe = os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)
+        current_name = os.path.basename(current_exe)
+        current_pid = os.getpid()
         bat = os.path.join(tempfile.gettempdir(), "hengxing_update.bat")
         with open(bat, "w", encoding="gbk") as f:
-            f.write(f"@echo off\n")
-            f.write(f"echo 正在更新恒星五金记账系统...\n")
-            f.write(f"timeout /t 2 /nobreak >nul\n")
-            f.write(f"taskkill /f /im \"{os.path.basename(current_exe)}\" >nul 2>&1\n")
-            f.write(f"timeout /t 1 /nobreak >nul\n")
+            f.write("@echo off\n")
+            f.write("echo 正在更新恒星五金记账系统...\n")
+            f.write("timeout /t 2 /nobreak >nul\n")
+            f.write(f"taskkill /f /im \"{current_name}\" >nul 2>&1\n")
+            f.write("timeout /t 1 /nobreak >nul\n")
+            # 如果上面 taskkill 失败（进程名可能不同），尝试按 PID 杀
+            f.write(f"taskkill /f /pid {current_pid} >nul 2>&1\n")
+            f.write("timeout /t 1 /nobreak >nul\n")
             f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >nul\n")
+            f.write("if %errorlevel% neq 0 (\n")
+            f.write("    echo 更新失败！请手动替换文件。\n")
+            f.write("    pause\n")
+            f.write("    exit /b 1\n")
+            f.write(")\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
-            f.write(f"del \"%~f0\"\n")
+            f.write("del \"%~f0\"\n")
         subprocess.Popen(["cmd", "/c", bat],
                          creationflags=subprocess.CREATE_NO_WINDOW,
                          close_fds=True)
         # 直接退出当前进程
         QApplication.quit()
+
+
+class DevPanel(QDialog):
+    """开发者工具面板 —— 双击版本号标签打开"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("开发者工具")
+        self.setMinimumSize(420, 300)
+        self.resize(440, 340)
+        self._build_ui()
+        self._apply_theme()
+        self._refresh_status()
+
+    def _build_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+
+        title = QLabel("开发者工具")
+        title.setStyleSheet("font-size:18px;font-weight:700;")
+        lay.addWidget(title)
+
+        # ── 状态信息 ──
+        status_card = QFrame()
+        status_card.setObjectName("devStatusCard")
+        sc_lay = QVBoxLayout(status_card)
+        sc_lay.setContentsMargins(16, 12, 16, 12)
+        sc_lay.setSpacing(6)
+        self._status_lbl = QLabel("")
+        self._status_lbl.setWordWrap(True)
+        self._status_lbl.setStyleSheet("font-size:12px;")
+        sc_lay.addWidget(self._status_lbl)
+        lay.addWidget(status_card)
+
+        # ── 测试版本号输入 ──
+        ver_row = QHBoxLayout()
+        ver_row.setSpacing(8)
+        ver_label = QLabel("测试版本号:")
+        ver_label.setStyleSheet("font-size:12px;")
+        self._test_ver = QLineEdit("99.0.0")
+        self._test_ver.setFixedWidth(100)
+        self._test_ver.setStyleSheet("font-size:12px;padding:4px 8px;")
+        ver_row.addWidget(ver_label)
+        ver_row.addWidget(self._test_ver)
+        ver_row.addStretch()
+        lay.addLayout(ver_row)
+
+        # ── 测试更新日志 ──
+        notes_row = QHBoxLayout()
+        notes_row.setSpacing(8)
+        notes_label = QLabel("测试日志:")
+        notes_label.setStyleSheet("font-size:12px;")
+        self._test_notes = QLineEdit("开发者测试更新（模拟）")
+        self._test_notes.setStyleSheet("font-size:12px;padding:4px 8px;")
+        notes_row.addWidget(notes_label)
+        notes_row.addWidget(self._test_notes)
+        lay.addLayout(notes_row)
+
+        # ── 按钮区 ──
+        btn_grid = QGridLayout()
+        btn_grid.setSpacing(8)
+
+        self._gen_btn = QPushButton("生成测试版本文件")
+        self._gen_btn.setObjectName("devGenBtn")
+        self._gen_btn.setFixedHeight(38)
+        self._gen_btn.clicked.connect(self._gen_test_file)
+        btn_grid.addWidget(self._gen_btn, 0, 0, 1, 2)
+
+        self._clear_btn = QPushButton("清除测试文件")
+        self._clear_btn.setObjectName("devClearBtn")
+        self._clear_btn.setFixedHeight(38)
+        self._clear_btn.clicked.connect(self._clear_test_file)
+        btn_grid.addWidget(self._clear_btn, 0, 2)
+
+        self._force_check_btn = QPushButton("强制检查更新")
+        self._force_check_btn.setObjectName("devCheckBtn")
+        self._force_check_btn.setFixedHeight(38)
+        self._force_check_btn.clicked.connect(self._force_check)
+        btn_grid.addWidget(self._force_check_btn, 1, 0, 1, 2)
+
+        self._close_btn = QPushButton("关闭")
+        self._close_btn.setObjectName("devCloseBtn")
+        self._close_btn.setFixedHeight(38)
+        self._close_btn.clicked.connect(self.accept)
+        btn_grid.addWidget(self._close_btn, 1, 2)
+
+        lay.addLayout(btn_grid)
+
+    def _apply_theme(self):
+        surface = t("surface")
+        card_bg = t("card2")
+        border = t("border")
+        text_color = t("text")
+        text_sub = t("text_sub")
+        accent = t("accent")
+        accent_h = t("accent_h")
+        input_bg = t("input_bg")
+        input_border = t("input_border")
+
+        self.setStyleSheet(f"""
+            DevPanel {{
+                background: {surface};
+            }}
+            #devStatusCard {{
+                background: {card_bg};
+                border: 1px solid {border};
+                border-radius: 8px;
+            }}
+            #devGenBtn {{
+                background: {accent};
+                color: white;
+                border: 0;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-size: 12px;
+                font-weight: 600;
+            }}
+            #devGenBtn:hover {{
+                background: {accent_h};
+            }}
+            #devClearBtn {{
+                background: {t('danger_bg')};
+                color: {t('danger')};
+                border: 1px solid {t('danger_border')};
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 12px;
+            }}
+            #devCheckBtn {{
+                background: {t('btn2_bg')};
+                color: {t('btn2_text')};
+                border: 1px solid {border};
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-size: 12px;
+            }}
+            #devCheckBtn:hover {{
+                background: {t('btn2_hover')};
+            }}
+            #devCloseBtn {{
+                background: {t('btn2_bg')};
+                color: {t('btn2_text')};
+                border: 1px solid {border};
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-size: 12px;
+            }}
+            #devCloseBtn:hover {{
+                background: {t('btn2_hover')};
+            }}
+        """)
+        self._test_ver.setStyleSheet(
+            f"font-size:12px;padding:4px 8px;background:{input_bg};"
+            f"color:{text_color};border:1px solid {input_border};border-radius:4px;"
+        )
+        self._test_notes.setStyleSheet(
+            f"font-size:12px;padding:4px 8px;background:{input_bg};"
+            f"color:{text_color};border:1px solid {input_border};border-radius:4px;"
+        )
+        self._status_lbl.setStyleSheet(f"font-size:12px;color:{text_color};")
+
+    def _get_app_dir(self):
+        return os.path.dirname(os.path.abspath(
+            sys.executable if getattr(sys, "frozen", False) else __file__
+        ))
+
+    def _get_test_path(self):
+        return os.path.join(self._get_app_dir(), "version_test.json")
+
+    def _refresh_status(self):
+        test_path = self._get_test_path()
+        lines = [
+            f"当前版本: v{APP_VERSION}",
+        ]
+        if os.path.exists(test_path):
+            try:
+                with open(test_path, "r", encoding="utf-8") as f:
+                    td = json.load(f)
+                lines.append(f"测试文件: 存在 (v{td.get('version', '?')})")
+                lines.append(f"  日志: {td.get('notes', '无')}")
+                lines.append(f"  下载URL: {'模拟下载' if not td.get('download_url') else td['download_url'][:50] + '...'}")
+            except Exception:
+                lines.append("测试文件: 存在（但无法解析）")
+        else:
+            lines.append("测试文件: 无")
+        lines.append(f"远程检查: {'已启用' if UPDATE_CHECK_URL else '已禁用'}")
+        self._status_lbl.setText("\n".join(lines))
+
+    def _gen_test_file(self):
+        ver = self._test_ver.text().strip() or "99.0.0"
+        notes = self._test_notes.text().strip() or "测试更新"
+        data = {
+            "version": ver,
+            "download_url": "",
+            "notes": notes,
+        }
+        path = self._get_test_path()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        self._refresh_status()
+        QMessageBox.information(self, "已生成",
+            f"测试版本文件已创建:\n{path}\n\n"
+            f"版本: v{ver}\n"
+            f"下次检查更新时将使用此文件。\n"
+            f"删除此文件即可恢复正常检查。")
+
+    def _clear_test_file(self):
+        path = self._get_test_path()
+        if os.path.exists(path):
+            os.remove(path)
+            self._refresh_status()
+            QMessageBox.information(self, "已清除", "测试版本文件已删除，恢复正常更新检查。")
+        else:
+            self._refresh_status()
+            QMessageBox.information(self, "提示", "没有测试文件需要清除。")
+
+    def _force_check(self):
+        """强制立即检查更新"""
+        if self.parent() and hasattr(self.parent(), "_check_update"):
+            self.parent()._check_update()
+            self.accept()  # 关闭面板
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -3353,8 +3818,20 @@ class MainWindow(QMainWindow):
         nl.addWidget(self.theme_btn); nl.addSpacing(16)
         self._ver_lbl = QLabel(f"v{APP_VERSION}")
         self._ver_lbl.setStyleSheet(f"color:{t('text_sub')};font-size:11px;cursor:pointer;")
-        self._ver_lbl.setToolTip("点击检查更新")
-        self._ver_lbl.mousePressEvent = lambda _: self._check_update()
+        self._ver_lbl.setToolTip("点击检查更新 | 双击打开开发者工具")
+        self._ver_click_time = 0
+        def _on_ver_click(_):
+            import time as _t
+            now = _t.time()
+            if now - self._ver_click_time < 0.4:
+                # 双击 → 打开开发者面板
+                self._ver_click_time = 0
+                dlg = DevPanel(self)
+                dlg.exec()
+            else:
+                self._ver_click_time = now
+                self._check_update()
+        self._ver_lbl.mousePressEvent = _on_ver_click
         nl.addWidget(self._ver_lbl)
         ml.addWidget(self.navbar)
 
@@ -3414,6 +3891,11 @@ class MainWindow(QMainWindow):
         """检查是否有新版本"""
         if not UPDATE_CHECK_URL:
             return
+        # 防止重复弹窗
+        if hasattr(self, "_update_dlg") and self._update_dlg and self._update_dlg.isVisible():
+            self._update_dlg.raise_()
+            self._update_dlg.activateWindow()
+            return
         self._checker = UpdateChecker(mode="check", url=UPDATE_CHECK_URL)
         self._checker.checked.connect(self._on_update_checked)
         self._checker.failed.connect(lambda _: None)  # 静默失败
@@ -3423,18 +3905,14 @@ class MainWindow(QMainWindow):
         remote_ver = info.get("version", "0.0.0")
         if _version_tuple(remote_ver) > _version_tuple(APP_VERSION):
             self._update_info = info
-            # 弹窗询问是否更新
-            ret = QMessageBox.question(
-                self, "发现新版本",
-                f"新版本 v{remote_ver} 可用\n\n{info.get('notes', '')}\n\n是否立即更新？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes)
-            if ret == QMessageBox.StandardButton.Yes:
-                self._start_download()
+            is_test = info.get("_test_mode", False)
+            self._update_dlg = UpdateDialog(info, self, test_mode=is_test)
+            self._update_dlg.show()  # 非模态：用户可最小化窗口继续使用软件
 
     def _start_download(self):
-        """开始后台下载，底部显示粉色进度条"""
+        """开始后台下载，底部显示进度条"""
         from PyQt6.QtWidgets import QProgressBar
+        ver = self._update_info.get("version", "") if hasattr(self, "_update_info") else ""
         # 创建底部进度条
         if not hasattr(self, "_dl_bar"):
             self._dl_bar = QProgressBar()
@@ -3446,7 +3924,7 @@ class MainWindow(QMainWindow):
             self.centralWidget().layout().insertWidget(3, self._dl_bar)
         self._dl_bar.setValue(0)
         self._dl_bar.show()
-        self.status_lbl.setText("正在下载更新...")
+        self.status_lbl.setText(f"正在下载更新 v{ver}...")
         # 启动下载
         self._downloader = UpdateChecker(mode="download", url=self._update_info.get("download_url", ""))
         self._downloader.progress.connect(self._on_download_progress)
