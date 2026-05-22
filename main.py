@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 UPDATE_CHECK_URL = "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -61,7 +61,8 @@ class UpdateChecker(QThread):
 
     def _do_check(self):
         ua = "恒星五金记账系统/" + APP_VERSION
-        script = f"(Invoke-WebRequest -Uri '{self.url}' -Headers @{{'User-Agent'='{ua}'}} -UseBasicParsing -TimeoutSec 10).Content"
+        url = self.url + ("&" if "?" in self.url else "?") + "t=" + str(int(__import__("time").time()))
+        script = f"(Invoke-WebRequest -Uri '{url}' -Headers @{{'User-Agent'='{ua}'}} -UseBasicParsing -TimeoutSec 10).Content"
         content = _ps_run(script)
         data = json.loads(content)
         self.checked.emit(data)
