@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -573,7 +573,7 @@ QMainWindow, #root_bg {{ background:{t('bg')}; }}
 #navbar {{ background:{t('surface')}; border-bottom:1px solid {t('border')}; }}
 
 /* Nav Tab */
-#nav_tab {{ background:transparent; border:none; color:{t('text_mid')};
+#nav_tab {{ background:transparent; border:none; color:{t('text')};
             font-size:13px; padding:8px 20px; border-radius:14px; }}
 #nav_tab:hover {{ background:{t('nav_active')}; color:{t('text')}; }}
 #nav_tab[active=true] {{ background:{t('nav_active')}; color:{t('accent')};
