@@ -17,7 +17,7 @@ from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
 APP_VERSION = "1.0.2"
-UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
+UPDATE_CHECK_URL = "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
 #  自动更新（基于 PowerShell，不依赖 urllib/email 等模块）
