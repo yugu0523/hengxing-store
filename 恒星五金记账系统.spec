@@ -12,7 +12,7 @@ a = Analysis(
     # 排除不需要的大库，减小体积
     excludes=['matplotlib', 'numpy', 'pandas', 'scipy', 'PIL',
               'tkinter', 'unittest', 'email', 'html', 'http',
-              'urllib', 'xml', 'xmlrpc', 'multiprocessing'],
+              'xml', 'xmlrpc', 'multiprocessing'],
     noarchive=False,
     optimize=1,
 )
