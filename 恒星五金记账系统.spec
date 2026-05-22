@@ -12,9 +12,11 @@ a = Analysis(
     # 排除不需要的大库，减小体积
     excludes=['matplotlib', 'numpy', 'pandas', 'scipy', 'PIL',
               'tkinter', 'unittest', 'email', 'html', 'http',
-              'urllib', 'xml', 'xmlrpc', 'multiprocessing'],
+              'urllib', 'xml', 'xmlrpc', 'multiprocessing',
+              'lib2to3', 'pkg_resources', 'setuptools',
+              'pydoc', 'doctest', 'argparse'],
     noarchive=False,
-    optimize=1,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 
@@ -27,7 +29,7 @@ exe = EXE(
     name='恒星五金记账系统',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
