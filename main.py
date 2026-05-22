@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.12"
+APP_VERSION = "1.0.13"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -205,7 +205,7 @@ class UpdateDialog(QDialog):
 
     def _on_done(self, tmp_path):
         self._progress_lbl.setText("下载完成，正在替换...")
-        self._apply_update(tmp_path)
+        self._apply_update_static(tmp_path)
         self.accept()
 
     def _on_fail(self, err):
@@ -215,7 +215,8 @@ class UpdateDialog(QDialog):
         self._progress_lbl.setText(f"下载失败: {err}")
         self._progress_bar.hide()
 
-    def _apply_update(self, new_exe):
+    @staticmethod
+    def _apply_update_static(new_exe):
         """写批处理脚本，等当前进程退出后替换 exe 并重启"""
         current_exe = os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)
         bat = os.path.join(tempfile.gettempdir(), "hengxing_update.bat")
@@ -2676,6 +2677,7 @@ class CustomerPage(QWidget):
         self.btn_add.clicked.connect(self._on_add)
         self.btn_edit.clicked.connect(self._on_edit)
         self.btn_del.clicked.connect(self._on_del)
+        self.table.cellDoubleClicked.connect(self._on_edit)
 
     def _toggle_empty(self):
         if self.table.rowCount() == 0:
@@ -3411,8 +3413,39 @@ class MainWindow(QMainWindow):
     def _on_update_checked(self, info):
         remote_ver = info.get("version", "0.0.0")
         if _version_tuple(remote_ver) > _version_tuple(APP_VERSION):
-            dlg = UpdateDialog(info, self)
-            dlg.exec()
+            self._update_info = info
+            self.status_lbl.setText(f"发现新版本 v{remote_ver}，正在后台下载...")
+            # 直接开始后台下载
+            self._downloader = UpdateChecker(mode="download", url=info.get("download_url", ""))
+            self._downloader.progress.connect(self._on_download_progress)
+            self._downloader.finished_ok.connect(self._on_download_done)
+            self._downloader.failed.connect(self._on_download_fail)
+            self._downloader.start()
+
+    def _on_download_progress(self, pct):
+        ver = self._update_info.get("version", "") if hasattr(self, "_update_info") else ""
+        self.status_lbl.setText(f"正在下载 v{ver}：{pct}%")
+
+    def _on_download_done(self, tmp_path):
+        self._update_tmp = tmp_path
+        ver = self._update_info.get("version", "") if hasattr(self, "_update_info") else ""
+        self.status_lbl.setText(f"v{ver} 更新已就绪")
+        # 状态栏添加重启按钮
+        if not hasattr(self, "_restart_btn"):
+            self._restart_btn = QPushButton("立即重启更新")
+            self._restart_btn.setStyleSheet(
+                f"QPushButton{{background:{t('accent')};color:white;border:0;"
+                f"border-radius:6px;padding:2px 12px;font-size:11px;}}"
+                f"QPushButton:hover{{background:{t('accent_h')};}}")
+            self._restart_btn.clicked.connect(self._apply_update)
+            self.statusbar_frame.layout().insertWidget(2, self._restart_btn)
+
+    def _on_download_fail(self, err):
+        self.status_lbl.setText(f"更新下载失败: {err}")
+
+    def _apply_update(self):
+        if hasattr(self, "_update_tmp") and os.path.exists(self._update_tmp):
+            UpdateDialog._apply_update_static(self._update_tmp)
 
     def _toggle_theme(self):
         global IS_DARK, T
