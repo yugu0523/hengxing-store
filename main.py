@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QStyledItemDelegate,
     QCompleter, QFileDialog, QGridLayout, QCheckBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QEvent, QRectF, QPointF, QRect, QTimer, QPropertyAnimation, QEasingCurve, QUrl
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QEvent, QRectF, QPointF, QRect, QTimer, QPropertyAnimation, QEasingCurve, QUrl, QThread
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt6.QtGui import QPageSize
