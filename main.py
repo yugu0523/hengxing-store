@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
-APP_VERSION = "1.0.14"
+APP_VERSION = "1.0.15"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 # ══════════════════════════════════════════════════════════════════════
@@ -60,20 +60,28 @@ class UpdateChecker(QThread):
             self.failed.emit(str(e))
 
     def _do_check(self):
+        import base64
         ts = str(int(__import__("time").time()))
         urls = [
             self.url + ("&" if "?" in self.url else "?") + "t=" + ts,
             "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json?t=" + ts,
+            "https://api.github.com/repos/yugu0523/hengxing-store/contents/version.json?t=" + ts,
         ]
         for url in urls:
             try:
                 raw = _curl(["--connect-timeout", "10", url], timeout=15)
-                if raw:
-                    text = raw.decode("utf-8", errors="replace")
+                if not raw:
+                    continue
+                text = raw.decode("utf-8", errors="replace")
+                data = json.loads(text)
+                # GitHub Contents API 返回 base64 编码的 content 字段
+                if "content" in data and "encoding" in data:
+                    content_b64 = data["content"].replace("\n", "")
+                    text = base64.b64decode(content_b64).decode("utf-8")
                     data = json.loads(text)
-                    if "version" in data:
-                        self.checked.emit(data)
-                        return
+                if "version" in data:
+                    self.checked.emit(data)
+                    return
             except Exception:
                 continue
         self.failed.emit("所有更新源均不可达")
