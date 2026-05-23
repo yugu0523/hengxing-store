@@ -80,7 +80,10 @@ class Toast(QWidget):
         p = self.parent()
         if p:
             pw, ph = p.width(), p.height()
-            self.move((pw - self.width()) // 2, (ph - self.height()) // 2)
+            # Tool 窗口用屏幕绝对坐标定位，需转换
+            global_pos = p.mapToGlobal(0, 0)
+            self.move(global_pos.x() + (pw - self.width()) // 2,
+                      global_pos.y() + (ph - self.height()) // 2)
 
     def _run(self, stay_ms: int = 1800):
         self._reposition()
