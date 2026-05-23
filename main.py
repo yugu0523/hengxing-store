@@ -79,9 +79,10 @@ class UpdateChecker(QThread):
         import base64
         ts = str(int(__import__("time").time()))
         urls = [
+            # GitHub API 优先（实时数据，无 CDN 缓存延迟）
+            "https://api.github.com/repos/yugu0523/hengxing-store/contents/version.json?t=" + ts,
             self.url + ("&" if "?" in self.url else "?") + "t=" + ts,
             "https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@master/version.json?t=" + ts,
-            "https://api.github.com/repos/yugu0523/hengxing-store/contents/version.json?t=" + ts,
         ]
         for url in urls:
             try:
