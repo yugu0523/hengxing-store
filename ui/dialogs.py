@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QFrame, QScrollArea, QFileDialog,
     QGridLayout, QWidget, QSpinBox,
+    QListWidget, QListWidgetItem, QAbstractItemView,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap, QColor
