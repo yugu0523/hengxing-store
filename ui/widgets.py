@@ -81,7 +81,8 @@ class Toast(QWidget):
         if p:
             pw, ph = p.width(), p.height()
             # Tool 窗口用屏幕绝对坐标定位，需转换
-            global_pos = p.mapToGlobal(0, 0)
+            from PyQt6.QtCore import QPoint
+            global_pos = p.mapToGlobal(QPoint(0, 0))
             self.move(global_pos.x() + (pw - self.width()) // 2,
                       global_pos.y() + (ph - self.height()) // 2)
 
