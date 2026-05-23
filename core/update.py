@@ -418,23 +418,48 @@ class UpdateDialog(QDialog):
             sys.executable if getattr(sys, "frozen", False) else __file__)
         current_name = os.path.basename(current_exe)
         current_pid = os.getpid()
+        log_file = os.path.join(tempfile.gettempdir(), "hengxing_update.log")
+
         bat = os.path.join(tempfile.gettempdir(), "hengxing_update.bat")
         with open(bat, "w", encoding="gbk") as f:
             f.write("@echo off\n")
-            f.write("echo 正在更新恒星五金记账系统...\n")
-            f.write("timeout /t 2 /nobreak >nul\n")
-            f.write(f"taskkill /f /im \"{current_name}\" >nul 2>&1\n")
-            f.write("timeout /t 1 /nobreak >nul\n")
-            f.write(f"taskkill /f /pid {current_pid} >nul 2>&1\n")
-            f.write("timeout /t 1 /nobreak >nul\n")
-            f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >nul\n")
-            f.write("if %errorlevel% neq 0 (\n")
-            f.write("    echo 更新失败！请手动替换文件。\n")
-            f.write("    pause\n")
-            f.write("    exit /b 1\n")
-            f.write(")\n")
+            f.write(f"echo [%date% %time%] 开始更新 >> \"{log_file}\"\n")
+            f.write(f"echo   旧文件: \"{current_exe}\" >> \"{log_file}\"\n")
+            f.write(f"echo   新文件: \"{new_exe}\" >> \"{log_file}\"\n")
+
+            # 等待程序完全退出（用 ping 代替 timeout，兼容性更好）
+            f.write("ping 127.0.0.1 -n 3 >nul\n")
+
+            # 强制结束旧进程（如果还在运行）
+            f.write(f"taskkill /f /im \"{current_name}\" >> \"{log_file}\" 2>&1\n")
+            f.write("ping 127.0.0.1 -n 2 >nul\n")
+            f.write(f"taskkill /f /pid {current_pid} >> \"{log_file}\" 2>&1\n")
+            f.write("ping 127.0.0.1 -n 2 >nul\n")
+
+            # 带重试的替换（最多重试 8 次，每次等待 1 秒）
+            f.write(f"set RETRY=0\n")
+            f.write(f":retry_copy\n")
+            f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
+            f.write(f"if %errorlevel% equ 0 goto copy_ok\n")
+            f.write(f"set /a RETRY+=1\n")
+            f.write(f"if %RETRY% geq 8 goto copy_fail\n")
+            f.write(f"ping 127.0.0.1 -n 2 >nul\n")
+            f.write(f"goto retry_copy\n")
+
+            # 复制成功
+            f.write(f":copy_ok\n")
+            f.write(f"echo [%date% %time%] 更新成功 >> \"{log_file}\"\n")
+            f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
-            f.write("del \"%~f0\"\n")
+            f.write(f"del \"%~f0\" & exit\n")
+
+            # 复制失败
+            f.write(f":copy_fail\n")
+            f.write(f"echo [%date% %time%] 更新失败：无法覆盖旧文件 >> \"{log_file}\"\n")
+            f.write(f"echo 更新失败！请查看日志: {log_file}\n")
+            f.write("pause\n")
+            f.write("del \"%~f0\" & exit /b 1\n")
+
         subprocess.Popen(["cmd", "/c", bat],
                          creationflags=subprocess.CREATE_NO_WINDOW,
                          close_fds=True)
