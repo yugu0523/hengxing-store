@@ -14,6 +14,16 @@ dist/
 # 产品图片（体积大，按需提交）
 product_images/
 
+# 运行时自动生成
+*.svg
+送货单模板.html
+
+# 测试文件
+version_test.json
+
+# Claude Code
+.claude/
+
 # IDE
 .vscode/
 .idea/
