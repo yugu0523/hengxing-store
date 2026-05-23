@@ -14,7 +14,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt6.QtGui import QPageSize
 from PyQt6.QtPdf import QPdfDocument
-from PyQt6.QtGui import QColor, QAction, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
+from PyQt6.QtGui import QColor, QAction, QIcon, QPalette, QPixmap, QPainter, QPen, QBrush, QPainterPath, QFont, QImage
 
 APP_VERSION = "1.0.18"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
@@ -4001,6 +4001,18 @@ if __name__ == "__main__":
     init_db()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
+    # ── 设置应用图标（任务栏 + 窗口标题栏）──
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 打包后：图标在临时解压目录
+        icon_path = os.path.join(sys._MEIPASS, "app_icon.ico")
+    else:
+        # 开发模式：图标在源码目录
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
+    if os.path.exists(icon_path):
+        app_icon = QIcon(icon_path)
+        app.setWindowIcon(app_icon)  # 任务栏图标
+
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
