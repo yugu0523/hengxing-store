@@ -478,7 +478,7 @@ class UpdateDialog(QDialog):
             f.write(f"echo   旧文件: \"{current_exe}\" >> \"{log_file}\"\n")
             f.write(f"echo   新文件: \"{new_exe}\" >> \"{log_file}\"\n")
 
-            # 等待程序完全退出（用 ping 代替 timeout，兼容性更好）
+            # 等待程序退出
             f.write("ping 127.0.0.1 -n 3 >nul\n")
 
             # 强制结束旧进程（如果还在运行）
@@ -487,29 +487,44 @@ class UpdateDialog(QDialog):
             f.write(f"taskkill /f /pid {current_pid} >> \"{log_file}\" 2>&1\n")
             f.write("ping 127.0.0.1 -n 2 >nul\n")
 
-            # 带重试的替换（最多重试 8 次，每次等待 1 秒）
-            f.write(f"set RETRY=0\n")
-            f.write(f":retry_copy\n")
+            # 策略：先 ren 旧文件（绕过 Defender 等进程对文件内容的锁）
+            # ren 是目录条目操作，不碰文件数据，即使有进程在读取也能成功
+            backup = current_exe + ".old"
+            f.write(f"echo [%date% %time%] 尝试重命名旧文件 >> \"{log_file}\"\n")
+            f.write(f"ren \"{current_exe}\" \"{os.path.basename(backup)}\" >> \"{log_file}\" 2>&1\n")
             f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
-            f.write(f"if %errorlevel% equ 0 goto copy_ok\n")
-            f.write(f"set /a RETRY+=1\n")
-            f.write(f"if %RETRY% geq 8 goto copy_fail\n")
-            f.write(f"ping 127.0.0.1 -n 2 >nul\n")
-            f.write(f"goto retry_copy\n")
+            f.write("if %errorlevel% equ 0 goto copy_ok\n")
 
-            # 复制成功
-            f.write(f":copy_ok\n")
+            # ren 成功但 copy 失败：恢复旧文件名
+            f.write(f"ren \"{backup}\" \"{current_name}\" >> \"{log_file}\" 2>&1\n")
+
+            # 回退：直接 copy 重试（最多 20 次，间隔 3 秒）
+            f.write(f"echo [%date% %time%] ren 方案失败，回退到直接复制 >> \"{log_file}\"\n")
+            f.write("set RETRY=0\n")
+            f.write(":retry_copy\n")
+            f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
+            f.write("if %errorlevel% equ 0 goto copy_ok\n")
+            f.write("set /a RETRY+=1\n")
+            f.write("if %RETRY% geq 20 goto final_fallback\n")
+            f.write("ping 127.0.0.1 -n 4 >nul\n")
+            f.write("goto retry_copy\n")
+
+            # 最后兜底：以 _new 后缀复制到同目录，启动 _new 版本
+            f.write(":final_fallback\n")
+            f.write(f"echo [%date% %time%] 直接复制也失败，使用 _new 兜底方案 >> \"{log_file}\"\n")
+            new_name = current_exe[:-4] + "_new.exe" if current_exe.lower().endswith('.exe') else current_exe + "_new.exe"
+            f.write(f"copy /y \"{new_exe}\" \"{new_name}\" >> \"{log_file}\" 2>&1\n")
+            f.write(f"if exist \"{new_name}\" start \"\" \"{new_name}\"\n")
+            f.write(f"echo [%date% %time%] 已启动 _new 版本，请手动删除旧文件 >> \"{log_file}\"\n")
+            f.write("del \"%~f0\" & exit\n")
+
+            # 复制成功：清理备份和临时文件
+            f.write(":copy_ok\n")
             f.write(f"echo [%date% %time%] 更新成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
+            f.write(f"if exist \"{backup}\" del \"{backup}\" >> \"{log_file}\" 2>&1\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
-            f.write(f"del \"%~f0\" & exit\n")
-
-            # 复制失败
-            f.write(f":copy_fail\n")
-            f.write(f"echo [%date% %time%] 更新失败：无法覆盖旧文件 >> \"{log_file}\"\n")
-            f.write(f"echo 更新失败！请查看日志: {log_file}\n")
-            f.write("pause\n")
-            f.write("del \"%~f0\" & exit /b 1\n")
+            f.write("del \"%~f0\" & exit\n")
 
         subprocess.Popen(["cmd", "/c", bat],
                          creationflags=subprocess.CREATE_NO_WINDOW,
