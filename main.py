@@ -179,7 +179,8 @@ class MainWindow(QMainWindow):
     def _on_download_progress(self, pct):
         if hasattr(self, "_dl_bar"):
             self._dl_bar.setValue(pct)
-        self.status_lbl.setText(f"正在下载更新：{pct}%")
+        if pct > 0:
+            self.status_lbl.setText(f"正在下载更新：{pct}%")
 
     def _on_download_done(self, tmp_path):
         self._update_tmp = tmp_path

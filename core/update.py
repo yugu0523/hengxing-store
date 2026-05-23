@@ -1,5 +1,7 @@
 """自动更新 — UpdateChecker (QThread) + UpdateDialog (QDialog)"""
 import sys, os, json, tempfile, subprocess
+import urllib.request
+import urllib.error
 
 from PyQt6.QtCore import QThread, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -88,6 +90,38 @@ class UpdateChecker(QThread):
                 continue
         self.failed.emit("所有更新源均不可达")
 
+    @staticmethod
+    def _get_content_length(url):
+        """检测文件大小，先用 urllib（HEAD 请求，自动跟随重定向），
+        失败再用 curl -I。返回 0 表示无法获取。"""
+        # 方法 1：urllib HEAD —— 对 GitHub→S3 重定向链更友好
+        try:
+            req = urllib.request.Request(url, method='HEAD')
+            req.add_header('User-Agent',
+                           'Mozilla/5.0 (compatible; HengXingUpdater/1.0)')
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                cl = resp.headers.get('Content-Length')
+                if cl:
+                    return int(cl)
+        except Exception:
+            pass
+
+        # 方法 2：curl -I 兜底
+        try:
+            r = subprocess.run(
+                ["curl", "-sL", "-I", "--connect-timeout", "10", "--max-time", "10", url],
+                capture_output=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            if r.returncode == 0:
+                for line in r.stdout.decode("utf-8", errors="replace").splitlines():
+                    if line.lower().startswith("content-length:"):
+                        return int(line.split(":", 1)[1].strip())
+        except Exception:
+            pass
+
+        return 0
+
     def _do_download(self):
         tmp = os.path.join(tempfile.gettempdir(), "hengxing_update.exe")
         for f in [tmp] + [tmp + f".part{i}" for i in range(4)]:
@@ -117,21 +151,12 @@ class UpdateChecker(QThread):
             dl_url = dl_urls[min(attempt, len(dl_urls) - 1)]
 
             try:
-                total = 0
-                r = subprocess.run(
-                    ["curl", "-sL", "-I", "--connect-timeout", "15", "--max-time", "15", dl_url],
-                    capture_output=True, timeout=20,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                if r.returncode == 0:
-                    for line in r.stdout.decode("utf-8", errors="replace").splitlines():
-                        if line.lower().startswith("content-length:"):
-                            total = int(line.split(":", 1)[1].strip())
-                            break
+                total = self._get_content_length(dl_url)
 
                 parts = [tmp + f".part{i}" for i in range(4)]
                 procs = []
                 if total > 0:
+                    # 分 4 路并行下载，实时百分比
                     chunk = total // 4
                     for i in range(4):
                         start = i * chunk
@@ -142,7 +167,27 @@ class UpdateChecker(QThread):
                             creationflags=subprocess.CREATE_NO_WINDOW
                         )
                         procs.append(p)
+
+                    while any(p.poll() is None for p in procs):
+                        downloaded = sum(
+                            os.path.getsize(part) for part in parts
+                            if os.path.exists(part)
+                        )
+                        self.progress.emit(min(int(downloaded * 100 / total), 99))
+                        __import__("time").sleep(0.2)
+
+                    if any(p.returncode != 0 for p in procs):
+                        raise RuntimeError(
+                            f"curl 进程异常退出 (返回码: {[p.returncode for p in procs]})")
+
+                    # 合并分片
+                    with open(tmp, "wb") as out:
+                        for part in parts:
+                            with open(part, "rb") as inp:
+                                out.write(inp.read())
+                            os.remove(part)
                 else:
+                    # 单路下载：实时轮询文件大小，估算进度
                     p = subprocess.Popen(
                         ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
                          "-o", tmp, dl_url],
@@ -150,26 +195,27 @@ class UpdateChecker(QThread):
                     )
                     procs.append(p)
 
-                while any(p.poll() is None for p in procs):
-                    downloaded = 0
-                    for part in parts:
+                    last_size = 0
+                    stall_ticks = 0
+                    while p.poll() is None:
                         try:
-                            downloaded += os.path.getsize(part)
+                            cur = os.path.getsize(tmp)
                         except OSError:
-                            pass
-                    if total > 0:
-                        self.progress.emit(min(int(downloaded * 100 / total), 99))
-                    __import__("time").sleep(0.3)
+                            cur = 0
+                        if cur > last_size:
+                            # 有数据流入，按 ~192 MB 估算进度（只到 95%，完成时跳 100%）
+                            est_pct = min(int(cur / (192 * 1024 * 1024) * 100), 95)
+                            self.progress.emit(max(est_pct, 1))
+                            stall_ticks = 0
+                        else:
+                            stall_ticks += 1
+                            if stall_ticks > 15:  # 停滞 3 秒以上
+                                self.progress.emit(1)  # 至少让用户知道还在尝试
+                        last_size = cur
+                        __import__("time").sleep(0.2)
 
-                if any(p.returncode != 0 for p in procs):
-                    raise RuntimeError(f"curl 进程异常退出 (返回码: {[p.returncode for p in procs]})")
-
-                if total > 0:
-                    with open(tmp, "wb") as out:
-                        for part in parts:
-                            with open(part, "rb") as inp:
-                                out.write(inp.read())
-                            os.remove(part)
+                    if p.returncode != 0:
+                        raise RuntimeError(f"curl 进程异常退出 (返回码: {p.returncode})")
 
                 if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
                     raise RuntimeError("下载完成但文件为空")
@@ -375,7 +421,12 @@ class UpdateDialog(QDialog):
 
     def _on_progress(self, pct):
         self._progress_bar.setValue(pct)
-        self._progress_lbl.setText(f"已下载 {pct}%")
+        if pct >= 100:
+            self._progress_lbl.setText("下载完成，正在校验...")
+        elif pct > 0:
+            self._progress_lbl.setText(f"正在下载... {pct}%")
+        else:
+            self._progress_lbl.setText("正在连接...")
 
     def _on_done(self, tmp_path):
         self._tmp_path = tmp_path
