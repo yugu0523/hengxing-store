@@ -9,14 +9,15 @@ a = Analysis(
         'core.config', 'core.db', 'core.update',
         'ui.theme', 'ui.widgets', 'ui.dialogs',
         'ui.product_page', 'ui.customer_page', 'ui.print_page', 'ui.stats_page',
+        'urllib.request', 'urllib.error',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     # 排除不需要的大库，减小体积
     excludes=['matplotlib', 'numpy', 'pandas', 'scipy', 'PIL',
-              'tkinter', 'unittest', 'email', 'html', 'http',
-              'urllib', 'xml', 'xmlrpc', 'multiprocessing',
+              'tkinter', 'unittest', 'email', 'html',
+              'xml', 'xmlrpc', 'multiprocessing',
               'lib2to3', 'pkg_resources', 'setuptools',
               'pydoc', 'doctest', 'argparse'],
     noarchive=False,
@@ -43,6 +44,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # 如有图标文件取消注释下一行：
     icon=r'C:\Users\27635\app_icon.ico',
 )
