@@ -1,7 +1,5 @@
 """自动更新 — UpdateChecker (QThread) + UpdateDialog (QDialog)"""
 import sys, os, json, tempfile, subprocess
-import urllib.request
-import urllib.error
 
 from PyQt6.QtCore import QThread, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -92,24 +90,27 @@ class UpdateChecker(QThread):
 
     @staticmethod
     def _get_content_length(url):
-        """检测文件大小，先用 urllib（HEAD 请求，自动跟随重定向），
-        失败再用 curl -I。返回 0 表示无法获取。"""
-        # 方法 1：urllib HEAD —— 对 GitHub→S3 重定向链更友好
-        try:
-            req = urllib.request.Request(url, method='HEAD')
-            req.add_header('User-Agent',
-                           'Mozilla/5.0 (compatible; HengXingUpdater/1.0)')
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                cl = resp.headers.get('Content-Length')
-                if cl:
-                    return int(cl)
-        except Exception:
-            pass
-
-        # 方法 2：curl -I 兜底
+        """检测文件大小，用 curl -I + -A 自定义 User-Agent。返回 0 表示无法获取。"""
+        # 方法 1：curl HEAD（默认 User-Agent，部分 CDN 不拒绝）
         try:
             r = subprocess.run(
                 ["curl", "-sL", "-I", "--connect-timeout", "10", "--max-time", "10", url],
+                capture_output=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            if r.returncode == 0:
+                for line in r.stdout.decode("utf-8", errors="replace").splitlines():
+                    if line.lower().startswith("content-length:"):
+                        return int(line.split(":", 1)[1].strip())
+        except Exception:
+            pass
+
+        # 方法 2：curl HEAD + 自定义 UA（GitHub 偶尔拒绝默认 curl UA）
+        try:
+            r = subprocess.run(
+                ["curl", "-sL", "-I",
+                 "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                 "--connect-timeout", "10", "--max-time", "10", url],
                 capture_output=True, timeout=15,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
