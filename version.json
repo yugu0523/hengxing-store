@@ -1,5 +1,5 @@
 {
-    "version": "1.0.25",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.25/default.exe",
-    "notes": "修复非全屏时 Toast 提示弹窗不居中的问题"
+    "version": "1.0.26",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.26/default.exe",
+    "notes": "修复升级后提示"与64位不兼容"的问题，增加下载文件完整性校验"
 }

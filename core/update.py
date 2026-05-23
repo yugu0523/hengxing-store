@@ -136,14 +136,6 @@ class UpdateChecker(QThread):
         last_err = ""
 
         dl_urls = [url]
-        if "github.com" in url and "/releases/download/" in url:
-            import re
-            m = re.search(r'/releases/download/([^/]+)/([^/]+)$', url)
-            if m:
-                tag, fname = m.group(1), m.group(2)
-                dl_urls.append(
-                    f"https://cdn.jsdelivr.net/gh/yugu0523/hengxing-store@{tag}/{fname}"
-                )
 
         for attempt in range(3):
             if attempt > 0:
@@ -220,6 +212,19 @@ class UpdateChecker(QThread):
 
                 if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
                     raise RuntimeError("下载完成但文件为空")
+
+                # 验证下载的文件是有效的 Windows PE exe
+                fsize = os.path.getsize(tmp)
+                with open(tmp, "rb") as _f:
+                    header = _f.read(2)
+                if header != b"MZ":
+                    raise RuntimeError(
+                        f"下载的文件不是有效的 exe（MZ 头校验失败，"
+                        f"文件大小 {fsize / 1024 / 1024:.1f}MB）")
+                if fsize < 5 * 1024 * 1024:
+                    raise RuntimeError(
+                        f"下载的文件体积异常（仅 {fsize / 1024 / 1024:.1f}MB），"
+                        f"可能下载不完整")
 
                 self.progress.emit(100)
                 self.finished_ok.emit(tmp)
