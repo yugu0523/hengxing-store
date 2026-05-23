@@ -2,10 +2,14 @@
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
     datas=[('app_icon.ico', '.')],
-    hiddenimports=[],
+    hiddenimports=[
+        'core.config', 'core.db', 'core.update',
+        'ui.theme', 'ui.widgets', 'ui.dialogs',
+        'ui.product_page', 'ui.customer_page', 'ui.print_page', 'ui.stats_page',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
