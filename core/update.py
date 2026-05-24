@@ -603,11 +603,13 @@ class UpdateDialog(QDialog):
             f.write(f"if exist \"{new_name_fallback}\" start \"\" \"{new_name_fallback}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
-            # ── 替换成功，确保缓冲时间足够再启动 ──
+            # ── 替换成功，清理旧临时文件后启动 ──
             f.write(":copy_ok\n")
             f.write(f"echo [%%date%% %%time%%] 替换成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
-            # move 原子替换后只需短暂缓冲，让文件系统刷新即可
+            # 清理旧进程残留的 _MEI* 临时目录（避免 DLL 加载冲突）
+            f.write("for /d %%d in (\"%TEMP%\\_MEI*\") do rd /s /q \"%%d\" 2>nul\n")
+            # 短暂缓冲让文件系统刷新
             f.write("ping 127.0.0.1 -n 3 >nul\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
             f.write("del \"%~f0\" & exit\n")

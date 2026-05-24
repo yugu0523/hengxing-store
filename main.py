@@ -243,13 +243,22 @@ if __name__ == "__main__":
         sys.__excepthook__(exc_type, exc_val, exc_tb)
     sys.excepthook = _excepthook
 
-    # ── 清理历史遗留的 .old 文件（旧版更新流程产生的备份）──
+    # ── 清理历史遗留文件 ──
     app_dir = os.path.dirname(os.path.abspath(
         sys.executable if getattr(sys, 'frozen', False) else __file__))
+    # 旧版更新产生的 .old 备份
     for old_file in glob.glob(os.path.join(app_dir, "*.old")):
         try:
             os.remove(old_file)
         except OSError:
+            pass
+    # 旧版 PyInstaller 残留的 _MEI 临时目录
+    import shutil
+    temp_dir = os.environ.get('TEMP', '')
+    for mei_dir in glob.glob(os.path.join(temp_dir, '_MEI*')):
+        try:
+            shutil.rmtree(mei_dir, ignore_errors=True)
+        except Exception:
             pass
 
     init_db()
