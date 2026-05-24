@@ -16,9 +16,23 @@ class RedTextDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         opt = option.__class__(option)
         self.initStyleOption(opt, index)
-        opt.palette.setColor(QPalette.ColorRole.Text, QColor("#ef4444"))
-        opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ef4444"))
-        opt.widget.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
+
+        # 先让 style 画背景、边框、选中高亮等，但不画文字
+        text = opt.text
+        opt.text = ""
+        style = opt.widget.style() if opt.widget else option.widget.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
+
+        # 手动用红色画文字，绕过 QSS ::item:selected color 覆盖
+        painter.save()
+        painter.setPen(QColor("#ef4444"))
+        painter.setFont(opt.font)
+        fm = painter.fontMetrics()
+        painter.drawText(
+            option.rect, opt.displayAlignment,
+            fm.elidedText(text, Qt.TextElideMode.ElideRight, option.rect.width()),
+        )
+        painter.restore()
 
 
 def add_shadow(w, blur=24, alpha=60):
