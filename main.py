@@ -255,10 +255,9 @@ if __name__ == "__main__":
     # 旧版 PyInstaller 残留的 _MEI 临时目录（跳过当前进程自己的）
     import shutil
     temp_dir = os.environ.get('TEMP', '')
-    current_mei = getattr(sys, '_MEIPASS', '') if getattr(sys, 'frozen', False) else ''
-    current_mei_dir = os.path.dirname(current_mei) if current_mei else ''
+    current_mei = os.path.normpath(sys._MEIPASS) if getattr(sys, 'frozen', False) else ''
     for mei_dir in glob.glob(os.path.join(temp_dir, '_MEI*')):
-        if mei_dir == current_mei_dir:
+        if os.path.normpath(mei_dir) == current_mei:
             continue
         try:
             shutil.rmtree(mei_dir, ignore_errors=True)
