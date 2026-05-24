@@ -1,5 +1,5 @@
 {
-    "version": "1.0.51",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.51/default.exe",
-    "notes": "修复 _MEI 清理：正确跳过当前进程目录"
+    "version": "1.0.52",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.52/default.exe",
+    "notes": "测试升级流程"
 }
