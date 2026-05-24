@@ -535,13 +535,13 @@ class CategoryDialog(QDialog):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         bg = "#f2f2f5" if not IS_DARK else t('surface')
         self.setStyleSheet(f"""
-            QDialog {{ background: transparent; }}
+            QDialog {{ background: {bg}; }}
             #cat_container {{
                 background: {bg};
                 border: none;
                 border-radius: 16px;
             }}
-            QWidget {{ background: transparent; color: {t('text')}; }}
+            QWidget {{ color: {t('text')}; }}
             QListWidget {{
                 background: {t('card')};
                 border: 2px solid {t('input_border')};
