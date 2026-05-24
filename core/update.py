@@ -356,6 +356,7 @@ class UpdateDialog(QDialog):
         text_sub = t("text_sub")
         accent = t("accent")
         accent_h = t("accent_h")
+        accent2 = t("accent2")
 
         self.setStyleSheet(f"""
             UpdateDialog {{
