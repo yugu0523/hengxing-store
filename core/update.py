@@ -13,7 +13,7 @@ from ui.theme import make_qss as _make_qss  # 用于 dialogs 重新应用样式
 
 
 def _version_tuple(v):
-    return tuple(int(x) for x in v.split("."))
+    return tuple(int(x) for x in v.replace(",", ".").split("."))
 
 
 def _curl(args, timeout=300):
