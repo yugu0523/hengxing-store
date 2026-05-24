@@ -548,20 +548,28 @@ class UpdateDialog(QDialog):
             f.write(f"echo [%date% %time%] 开始更新 >> \"{log_file}\"\n")
             f.write(f"echo   旧文件: \"{current_exe}\" >> \"{log_file}\"\n")
             f.write(f"echo   新文件: \"{new_exe}\" >> \"{log_file}\"\n")
+            f.write(f"echo   等待 PID={current_pid} 自然退出... >> \"{log_file}\"\n")
 
-            # 等待程序退出
-            f.write("ping 127.0.0.1 -n 3 >nul\n")
-
-            # 强制结束旧进程（如果还在运行）
-            f.write(f"taskkill /f /im \"{current_name}\" >> \"{log_file}\" 2>&1\n")
+            # ── 轮询等待进程自然退出（最多 30 秒）──
+            # 不主动 taskkill /f，让 PyInstaller 的 atexit 正常清理 _MEI
+            # 这样 DLL 不会冲突，且进程一退出批处理就能立即替换，无需固定延迟
+            f.write("set TRIES=0\n")
+            f.write(":wait_exit\n")
+            f.write(f"tasklist /fi \"PID eq {current_pid}\" 2>nul | find \"{current_pid}\" >nul\n")
+            f.write("if errorlevel 1 goto do_replace\n")
             f.write("ping 127.0.0.1 -n 2 >nul\n")
+            f.write("set /a TRIES+=1\n")
+            f.write("if %TRIES% lss 30 goto wait_exit\n")
+
+            # 30 秒后仍未退出才强制杀进程（兜底）
+            f.write(f"echo [%date% %time%] 进程未自然退出，强制结束 >> \"{log_file}\"\n")
             f.write(f"taskkill /f /pid {current_pid} >> \"{log_file}\" 2>&1\n")
-            f.write("ping 127.0.0.1 -n 2 >nul\n")
+            f.write("ping 127.0.0.1 -n 4 >nul\n")
 
-            # 策略：先 ren 旧文件（绕过 Defender 等进程对文件内容的锁）
-            # ren 是目录条目操作，不碰文件数据，即使有进程在读取也能成功
+            # ── 替换文件 ──
+            f.write(":do_replace\n")
+            f.write(f"echo [%date% %time%] 进程已退出，开始替换文件 >> \"{log_file}\"\n")
             backup = current_exe + ".old"
-            f.write(f"echo [%date% %time%] 尝试重命名旧文件 >> \"{log_file}\"\n")
             f.write(f"ren \"{current_exe}\" \"{os.path.basename(backup)}\" >> \"{log_file}\" 2>&1\n")
             f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write("if %errorlevel% equ 0 goto copy_ok\n")
@@ -569,15 +577,15 @@ class UpdateDialog(QDialog):
             # ren 成功但 copy 失败：恢复旧文件名
             f.write(f"ren \"{backup}\" \"{current_name}\" >> \"{log_file}\" 2>&1\n")
 
-            # 回退：直接 copy 重试（最多 20 次，间隔 3 秒）
+            # 回退：直接 copy 重试（最多 10 次，间隔 1 秒）
             f.write(f"echo [%date% %time%] ren 方案失败，回退到直接复制 >> \"{log_file}\"\n")
             f.write("set RETRY=0\n")
             f.write(":retry_copy\n")
             f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write("if %errorlevel% equ 0 goto copy_ok\n")
             f.write("set /a RETRY+=1\n")
-            f.write("if %RETRY% geq 20 goto final_fallback\n")
-            f.write("ping 127.0.0.1 -n 4 >nul\n")
+            f.write("if %RETRY% geq 10 goto final_fallback\n")
+            f.write("ping 127.0.0.1 -n 2 >nul\n")
             f.write("goto retry_copy\n")
 
             # 最后兜底：以 _new 后缀复制到同目录，启动 _new 版本
@@ -589,13 +597,11 @@ class UpdateDialog(QDialog):
             f.write(f"echo [%date% %time%] 已启动 _new 版本，请手动删除旧文件 >> \"{log_file}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
-            # 复制成功：等待 PyInstaller 旧进程彻底清理完成，清理备份和临时文件
+            # 复制成功，清理并启动
             f.write(":copy_ok\n")
             f.write(f"echo [%date% %time%] 更新成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write(f"if exist \"{backup}\" del \"{backup}\" >> \"{log_file}\" 2>&1\n")
-            # 等待 3 秒，确保旧 PyInstaller _MEI 临时目录清理完毕
-            f.write("ping 127.0.0.1 -n 4 >nul\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
