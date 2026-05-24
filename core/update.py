@@ -272,6 +272,11 @@ class UpdateDialog(QDialog):
         self.setWindowTitle("发现新版本")
         self.setMinimumSize(440, 320)
         self.resize(480, 400)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.WindowSystemMenuHint
+        )
         self._info = info
         self._test_mode = test_mode
         self._downloader = None
