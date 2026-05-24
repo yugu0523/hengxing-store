@@ -601,7 +601,19 @@ class UpdateDialog(QDialog):
             f.write(":copy_ok\n")
             f.write(f"echo [%date% %time%] 更新成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
-            f.write(f"if exist \"{backup}\" del \"{backup}\" >> \"{log_file}\" 2>&1\n")
+            # 删除 .old 备份（重试 3 次，Windows 重命名后可能短暂锁定）
+            f.write(f"if not exist \"{backup}\" goto skip_old_del\n")
+            f.write("set OLD_RETRY=0\n")
+            f.write(":del_old\n")
+            f.write(f"del \"{backup}\" >> \"{log_file}\" 2>&1\n")
+            f.write(f"if not exist \"{backup}\" goto skip_old_del\n")
+            f.write("set /a OLD_RETRY+=1\n")
+            f.write("if %OLD_RETRY% geq 3 goto skip_old_del\n")
+            f.write("ping 127.0.0.1 -n 2 >nul\n")
+            f.write("goto del_old\n")
+            f.write(":skip_old_del\n")
+            # 短暂等待让 Windows 文件系统刷新 + Defender 扫描完成，再启动新 exe
+            f.write("ping 127.0.0.1 -n 3 >nul\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
