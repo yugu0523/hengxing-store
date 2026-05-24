@@ -135,7 +135,15 @@ class UpdateChecker(QThread):
         url = self.url
         last_err = ""
 
-        dl_urls = [url]
+        dl_urls = []
+        # 国内 GitHub 代理加速（免费公共代理，不需要任何配置）
+        if "github.com" in url and "/releases/download/" in url:
+            dl_urls.extend([
+                url.replace("https://github.com/", "https://ghfast.top/https://github.com/"),
+                url.replace("https://github.com/", "https://gh-proxy.com/https://github.com/"),
+                url.replace("https://github.com/", "https://mirror.ghproxy.com/https://github.com/"),
+            ])
+        dl_urls.append(url)  # GitHub 原始链接作为兜底
 
         for attempt in range(3):
             if attempt > 0:
