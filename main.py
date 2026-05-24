@@ -1,5 +1,5 @@
 """恒星五金记账系统 — 入口文件"""
-import sys, os, traceback
+import sys, os, traceback, glob
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -242,6 +242,15 @@ if __name__ == "__main__":
             pass
         sys.__excepthook__(exc_type, exc_val, exc_tb)
     sys.excepthook = _excepthook
+
+    # ── 清理历史遗留的 .old 文件（旧版更新流程产生的备份）──
+    app_dir = os.path.dirname(os.path.abspath(
+        sys.executable if getattr(sys, 'frozen', False) else __file__))
+    for old_file in glob.glob(os.path.join(app_dir, "*.old")):
+        try:
+            os.remove(old_file)
+        except OSError:
+            pass
 
     init_db()
     app = QApplication(sys.argv)

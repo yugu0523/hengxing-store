@@ -538,21 +538,23 @@ class UpdateDialog(QDialog):
     def _apply_update_static(new_exe):
         current_exe = os.path.abspath(
             sys.executable if getattr(sys, "frozen", False) else __file__)
-        current_name = os.path.basename(current_exe)
         current_pid = os.getpid()
         log_file = os.path.join(tempfile.gettempdir(), "hengxing_update.log")
+        new_name_fallback = (
+            current_exe[:-4] + "_new.exe"
+            if current_exe.lower().endswith('.exe')
+            else current_exe + "_new.exe"
+        )
 
         bat = os.path.join(tempfile.gettempdir(), "hengxing_update.bat")
         with open(bat, "w", encoding="gbk") as f:
             f.write("@echo off\n")
-            f.write(f"echo [%date% %time%] 开始更新 >> \"{log_file}\"\n")
+            f.write(f"echo [%%date%% %%time%%] 开始更新 >> \"{log_file}\"\n")
             f.write(f"echo   旧文件: \"{current_exe}\" >> \"{log_file}\"\n")
             f.write(f"echo   新文件: \"{new_exe}\" >> \"{log_file}\"\n")
             f.write(f"echo   等待 PID={current_pid} 自然退出... >> \"{log_file}\"\n")
 
             # ── 轮询等待进程自然退出（最多 30 秒）──
-            # 不主动 taskkill /f，让 PyInstaller 的 atexit 正常清理 _MEI
-            # 这样 DLL 不会冲突，且进程一退出批处理就能立即替换，无需固定延迟
             f.write("set TRIES=0\n")
             f.write(":wait_exit\n")
             f.write(f"tasklist /fi \"PID eq {current_pid}\" 2>nul | find \"{current_pid}\" >nul\n")
@@ -562,58 +564,51 @@ class UpdateDialog(QDialog):
             f.write("if %TRIES% lss 30 goto wait_exit\n")
 
             # 30 秒后仍未退出才强制杀进程（兜底）
-            f.write(f"echo [%date% %time%] 进程未自然退出，强制结束 >> \"{log_file}\"\n")
+            f.write(f"echo [%%date%% %%time%%] 进程未自然退出，强制结束 >> \"{log_file}\"\n")
             f.write(f"taskkill /f /pid {current_pid} >> \"{log_file}\" 2>&1\n")
             f.write("ping 127.0.0.1 -n 4 >nul\n")
 
-            # ── 替换文件 ──
+            # ── 替换文件（move 同盘原子操作，不留 .old）──
             f.write(":do_replace\n")
-            f.write(f"echo [%date% %time%] 进程已退出，开始替换文件 >> \"{log_file}\"\n")
-            backup = current_exe + ".old"
-            f.write(f"ren \"{current_exe}\" \"{os.path.basename(backup)}\" >> \"{log_file}\" 2>&1\n")
-            f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
+            f.write(f"echo [%%date%% %%time%%] 进程已退出，开始替换文件 >> \"{log_file}\"\n")
+
+            # 先清理历史遗留的 .old 文件
+            f.write(f"if exist \"{current_exe}.old\" del /f \"{current_exe}.old\" >> \"{log_file}\" 2>&1\n")
+
+            # move /y 直接覆盖：同盘是原子 rename，不产生 .old 备份
+            f.write(f"move /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write("if %errorlevel% equ 0 goto copy_ok\n")
 
-            # ren 成功但 copy 失败：恢复旧文件名
-            f.write(f"ren \"{backup}\" \"{current_name}\" >> \"{log_file}\" 2>&1\n")
-
-            # 回退：直接 copy 重试（最多 10 次，间隔 1 秒）
-            f.write(f"echo [%date% %time%] ren 方案失败，回退到直接复制 >> \"{log_file}\"\n")
+            # move 失败（可能跨盘或短暂锁定），重试 move
             f.write("set RETRY=0\n")
+            f.write(":retry_move\n")
+            f.write("ping 127.0.0.1 -n 3 >nul\n")
+            f.write(f"move /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
+            f.write("if %errorlevel% equ 0 goto copy_ok\n")
+            f.write("set /a RETRY+=1\n")
+            f.write("if %RETRY% leq 5 goto retry_move\n")
+
+            # move 全部失败，用 copy 兜底
+            f.write(f"echo [%%date%% %%time%%] move 失败，回退到 copy >> \"{log_file}\"\n")
+            f.write("set CRETRY=0\n")
             f.write(":retry_copy\n")
             f.write(f"copy /y \"{new_exe}\" \"{current_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write("if %errorlevel% equ 0 goto copy_ok\n")
-            f.write("set /a RETRY+=1\n")
-            f.write("if %RETRY% geq 10 goto final_fallback\n")
-            f.write("ping 127.0.0.1 -n 2 >nul\n")
-            f.write("goto retry_copy\n")
+            f.write("set /a CRETRY+=1\n")
+            f.write("if %CRETRY% leq 5 goto retry_copy\n")
 
-            # 最后兜底：以 _new 后缀复制到同目录，启动 _new 版本
-            f.write(":final_fallback\n")
-            f.write(f"echo [%date% %time%] 直接复制也失败，使用 _new 兜底方案 >> \"{log_file}\"\n")
-            new_name = current_exe[:-4] + "_new.exe" if current_exe.lower().endswith('.exe') else current_exe + "_new.exe"
-            f.write(f"copy /y \"{new_exe}\" \"{new_name}\" >> \"{log_file}\" 2>&1\n")
-            f.write(f"if exist \"{new_name}\" start \"\" \"{new_name}\"\n")
-            f.write(f"echo [%date% %time%] 已启动 _new 版本，请手动删除旧文件 >> \"{log_file}\"\n")
+            # 最终兜底：以 _new 命名放到同目录
+            f.write(f"echo [%%date%% %%time%%] 替换失败，使用 _new 兜底 >> \"{log_file}\"\n")
+            f.write(f"copy /y \"{new_exe}\" \"{new_name_fallback}\" >> \"{log_file}\" 2>&1\n")
+            f.write(f"if exist \"{new_name_fallback}\" start \"\" \"{new_name_fallback}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
-            # 复制成功，清理并启动
+            # ── 替换成功，确保缓冲时间足够再启动 ──
             f.write(":copy_ok\n")
-            f.write(f"echo [%date% %time%] 更新成功 >> \"{log_file}\"\n")
+            f.write(f"echo [%%date%% %%time%%] 替换成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
-            # 删除 .old 备份（重试 3 次，Windows 重命名后可能短暂锁定）
-            f.write(f"if not exist \"{backup}\" goto skip_old_del\n")
-            f.write("set OLD_RETRY=0\n")
-            f.write(":del_old\n")
-            f.write(f"del \"{backup}\" >> \"{log_file}\" 2>&1\n")
-            f.write(f"if not exist \"{backup}\" goto skip_old_del\n")
-            f.write("set /a OLD_RETRY+=1\n")
-            f.write("if %OLD_RETRY% geq 3 goto skip_old_del\n")
-            f.write("ping 127.0.0.1 -n 2 >nul\n")
-            f.write("goto del_old\n")
-            f.write(":skip_old_del\n")
-            # 短暂等待让 Windows 文件系统刷新 + Defender 扫描完成，再启动新 exe
-            f.write("ping 127.0.0.1 -n 3 >nul\n")
+            # 等待 8 秒让 Windows 文件系统和 Defender 完全释放新文件
+            f.write("ping 127.0.0.1 -n 8 >nul\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
