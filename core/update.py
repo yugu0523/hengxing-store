@@ -607,8 +607,8 @@ class UpdateDialog(QDialog):
             f.write(":copy_ok\n")
             f.write(f"echo [%%date%% %%time%%] 替换成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
-            # 等待 8 秒让 Windows 文件系统和 Defender 完全释放新文件
-            f.write("ping 127.0.0.1 -n 8 >nul\n")
+            # move 原子替换后只需短暂缓冲，让文件系统刷新即可
+            f.write("ping 127.0.0.1 -n 3 >nul\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
             f.write("del \"%~f0\" & exit\n")
 

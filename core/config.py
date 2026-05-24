@@ -1,7 +1,7 @@
 """应用常量 + 路径工具"""
 import sys, os
 
-APP_VERSION = "1.0.44"
+APP_VERSION = "1.0.45"
 UPDATE_CHECK_URL = "https://raw.githubusercontent.com/yugu0523/hengxing-store/master/version.json"
 
 
