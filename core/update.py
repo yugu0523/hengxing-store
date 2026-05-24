@@ -589,11 +589,13 @@ class UpdateDialog(QDialog):
             f.write(f"echo [%date% %time%] 已启动 _new 版本，请手动删除旧文件 >> \"{log_file}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
-            # 复制成功：清理备份和临时文件
+            # 复制成功：等待 PyInstaller 旧进程彻底清理完成，清理备份和临时文件
             f.write(":copy_ok\n")
             f.write(f"echo [%date% %time%] 更新成功 >> \"{log_file}\"\n")
             f.write(f"del \"{new_exe}\" >> \"{log_file}\" 2>&1\n")
             f.write(f"if exist \"{backup}\" del \"{backup}\" >> \"{log_file}\" 2>&1\n")
+            # 等待 3 秒，确保旧 PyInstaller _MEI 临时目录清理完毕
+            f.write("ping 127.0.0.1 -n 4 >nul\n")
             f.write(f"start \"\" \"{current_exe}\"\n")
             f.write("del \"%~f0\" & exit\n")
 
