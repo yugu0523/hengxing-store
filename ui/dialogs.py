@@ -532,10 +532,9 @@ class CategoryDialog(QDialog):
         self.setWindowTitle("管理分类")
         self.setFixedSize(440, 500)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         bg = "#f2f2f5" if not IS_DARK else t('surface')
         self.setStyleSheet(f"""
-            QDialog {{ background: {bg}; }}
+            QDialog {{ background: {bg}; border-radius: 16px; }}
             #cat_container {{
                 background: {bg};
                 border: none;
@@ -577,7 +576,7 @@ class CategoryDialog(QDialog):
         bg = "#f2f2f5" if not IS_DARK else t('surface')
         text_color = "#18181c" if not IS_DARK else t('text')
         root = QVBoxLayout(self)
-        root.setContentsMargins(8,8,8,8); root.setSpacing(0)
+        root.setContentsMargins(0,0,0,0); root.setSpacing(0)
 
         container = QWidget(); container.setObjectName("cat_container")
         add_shadow(container, 32, 80 if IS_DARK else 30)
