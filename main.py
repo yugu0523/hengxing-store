@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
             nl.addWidget(b); self.tab_btns[tab] = b
         nl.addStretch()
 
-        self.theme_btn = QPushButton("🌙  夜间模式")
+        self.theme_btn = QPushButton("🌙  深色模式")
         self.theme_btn.setObjectName("theme_btn"); self.theme_btn.setFixedHeight(34)
         self.theme_btn.clicked.connect(self._toggle_theme)
         nl.addWidget(self.theme_btn); nl.addSpacing(16)
@@ -210,7 +210,7 @@ class MainWindow(QMainWindow):
     def _toggle_theme(self):
         theme.IS_DARK = not theme.IS_DARK
         theme.T.update(theme.DARK if theme.IS_DARK else theme.LIGHT)
-        self.theme_btn.setText("☀️  日间模式" if theme.IS_DARK else "🌙  夜间模式")
+        self.theme_btn.setText("☀️  浅色模式" if theme.IS_DARK else "🌙  深色模式")
         self.apply_theme()
 
     def apply_theme(self):
