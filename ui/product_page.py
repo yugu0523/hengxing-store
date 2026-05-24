@@ -468,7 +468,9 @@ class ProductPage(QWidget):
         dlg.setStyleSheet(make_qss())
         if dlg.exec():
             db_insert(*dlg.result_data); self.refresh()
-            self.status_sig.emit(f"✓  已新增：{dlg.result_data[0]}")
+            name = dlg.result_data[0]
+            self.status_sig.emit(f"✓  已新增：{name}")
+            Toast.show_msg(self.window(), f"商品「{name}」已保存")
             self.data_changed.emit()
 
     def on_copy(self):
