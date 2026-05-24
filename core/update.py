@@ -163,7 +163,9 @@ class UpdateChecker(QThread):
                         start = i * chunk
                         end = total - 1 if i == 3 else (i + 1) * chunk - 1
                         p = subprocess.Popen(
-                            ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
+                            ["curl", "-sL",
+                             "--connect-timeout", "30", "--max-time", "600",
+                             "--retry", "3", "--retry-delay", "2",
                              "-r", f"{start}-{end}", "-o", parts[i], dl_url],
                             creationflags=subprocess.CREATE_NO_WINDOW
                         )
@@ -177,9 +179,22 @@ class UpdateChecker(QThread):
                         self.progress.emit(min(int(downloaded * 100 / total), 99))
                         __import__("time").sleep(0.2)
 
-                    if any(p.returncode != 0 for p in procs):
-                        raise RuntimeError(
-                            f"curl 进程异常退出 (返回码: {[p.returncode for p in procs]})")
+                    # 失败的分片单独重试一次
+                    for i, p in enumerate(procs):
+                        if p.returncode != 0:
+                            start = i * chunk
+                            end = total - 1 if i == 3 else (i + 1) * chunk - 1
+                            p2 = subprocess.run(
+                                ["curl", "-sL",
+                                 "--connect-timeout", "30", "--max-time", "600",
+                                 "--retry", "3", "--retry-delay", "2",
+                                 "-r", f"{start}-{end}", "-o", parts[i], dl_url],
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                timeout=620
+                            )
+                            if p2.returncode != 0:
+                                raise RuntimeError(
+                                    f"分片 {i} 下载失败 (返回码: {p2.returncode})")
 
                     # 合并分片
                     with open(tmp, "wb") as out:
@@ -190,7 +205,9 @@ class UpdateChecker(QThread):
                 else:
                     # 单路下载：实时轮询文件大小，估算进度
                     p = subprocess.Popen(
-                        ["curl", "-sL", "--connect-timeout", "30", "--max-time", "600",
+                        ["curl", "-sL",
+                         "--connect-timeout", "30", "--max-time", "600",
+                         "--retry", "3", "--retry-delay", "2",
                          "-o", tmp, dl_url],
                         creationflags=subprocess.CREATE_NO_WINDOW
                     )
@@ -204,14 +221,12 @@ class UpdateChecker(QThread):
                         except OSError:
                             cur = 0
                         if cur > last_size:
-                            # 有数据流入，按 ~192 MB 估算进度（只到 95%，完成时跳 100%）
                             est_pct = min(int(cur / (192 * 1024 * 1024) * 100), 95)
                             self.progress.emit(max(est_pct, 1))
                             stall_ticks = 0
                         else:
                             stall_ticks += 1
-                            if stall_ticks > 15:  # 停滞 3 秒以上
-                                self.progress.emit(1)  # 至少让用户知道还在尝试
+                            # curl 自身有 --retry 重连中，不降进度
                         last_size = cur
                         __import__("time").sleep(0.2)
 
