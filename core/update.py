@@ -135,6 +135,24 @@ class UpdateChecker(QThread):
         url = self.url
         last_err = ""
 
+        # 预检：HEAD 请求确认文件存在
+        try:
+            r = subprocess.run(
+                ["curl", "-sI", "-o", "/dev/null", "-w", "%{http_code}",
+                 "--connect-timeout", "10", "--max-time", "10", url],
+                capture_output=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            http_code = r.stdout.decode("utf-8", errors="replace").strip()
+            if http_code == "404":
+                self.failed.emit("服务器上未找到更新文件（可能已被删除），请联系开发者")
+                return
+            if http_code.startswith(("4", "5")):
+                self.failed.emit(f"更新服务器返回错误 (HTTP {http_code})，请稍后重试")
+                return
+        except Exception:
+            pass  # HEAD 失败不阻断，继续尝试下载
+
         dl_urls = []
         # 国内 GitHub 代理加速（免费公共代理，不需要任何配置）
         if "github.com" in url and "/releases/download/" in url:
