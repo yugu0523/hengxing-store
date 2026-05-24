@@ -14,7 +14,8 @@ from core.config import get_app_dir, APP_VERSION, UPDATE_CHECK_URL
 from core.db import (db_cat_names, db_cat_add, db_cat_update, db_cat_reorder,
                      db_cat_delete, db_cats, _img_dir)
 from ui.theme import (t, T, IS_DARK, CAT_COLORS, CAT_ICONS, _color_for, _icon_for,
-                       make_qss, PINNED_COUNT, DEFAULT_COLORS, DEFAULT_ICONS)
+                       make_qss, PINNED_COUNT, DEFAULT_COLORS, DEFAULT_ICONS,
+                       is_dark_theme)
 from ui.widgets import add_shadow, icon_badge, cat_badge, MsgBox, DropdownSelect
 
 class DevPanel(QDialog):
@@ -246,7 +247,7 @@ class ProductDialog(QDialog):
         self.setWindowTitle("编辑商品" if data else "新增商品")
         self.setFixedSize(480, 680)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        bg = "#e6e6ec" if not IS_DARK else t('surface')
+        bg = "#e6e6ec" if not is_dark_theme() else t('surface')
         self.setStyleSheet(f"""
             QDialog {{ background: {bg}; border-radius: 16px; }}
             #dialog_container {{
@@ -259,7 +260,7 @@ class ProductDialog(QDialog):
             QScrollArea > QWidget > QWidget {{ background: {bg}; }}
             QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {{
                 background: {t('input_bg')};
-                border: 2px solid {'#a8a8c8' if not IS_DARK else t('input_border')};
+                border: 2px solid {'#a8a8c8' if not is_dark_theme() else t('input_border')};
                 border-radius: 17px;
                 color: {t('text')};
                 padding: 0 14px;
@@ -294,7 +295,7 @@ class ProductDialog(QDialog):
         w.setPlaceholderText(ph); w.setFixedHeight(34); return w
 
     def _build(self):
-        bg = "#e6e6ec" if not IS_DARK else t('surface')
+        bg = "#e6e6ec" if not is_dark_theme() else t('surface')
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -304,7 +305,7 @@ class ProductDialog(QDialog):
         cl = QVBoxLayout(container)
         cl.setContentsMargins(0, 0, 0, 0)
         cl.setSpacing(0)
-        add_shadow(container, 32, 80 if IS_DARK else 30)
+        add_shadow(container, 32, t('shadow_alpha'))
         root.addWidget(container)
 
         # 顶部粉色条
@@ -485,7 +486,7 @@ class ProductDialog(QDialog):
             return
         dlg = QDialog(self)
         dlg.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        bg = "#f2f2f5" if not IS_DARK else t('surface')
+        bg = "#f2f2f5" if not is_dark_theme() else t('surface')
         dlg.setStyleSheet(f"QDialog{{background:{bg};border-radius:16px;}}")
         root = QVBoxLayout(dlg); root.setContentsMargins(0,0,0,0)
         container = QFrame()
@@ -502,7 +503,7 @@ class ProductDialog(QDialog):
         close_btn.clicked.connect(dlg.accept)
         btn_row = QHBoxLayout(); btn_row.addStretch(); btn_row.addWidget(close_btn); btn_row.addStretch()
         cl.addLayout(btn_row)
-        add_shadow(container, 32, 80 if IS_DARK else 30)
+        add_shadow(container, 32, t('shadow_alpha'))
         root.addWidget(container)
         dlg.exec()
 
@@ -532,7 +533,7 @@ class CategoryDialog(QDialog):
         self.setWindowTitle("管理分类")
         self.setFixedSize(440, 500)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        bg = "#f2f2f5" if not IS_DARK else t('surface')
+        bg = "#f2f2f5" if not is_dark_theme() else t('surface')
         self.setStyleSheet(f"""
             QDialog {{ background: {bg}; border-radius: 16px; }}
             #cat_container {{
@@ -564,7 +565,7 @@ class CategoryDialog(QDialog):
         self._editing = None  # 正在编辑的分类名
         self._build()
         self._center()
-        add_shadow(self.findChild(QWidget, "cat_container"), 32, 80 if IS_DARK else 30)
+        add_shadow(self.findChild(QWidget, "cat_container"), 32, t('shadow_alpha'))
 
     def _center(self):
         p = self.parent()
@@ -573,20 +574,18 @@ class CategoryDialog(QDialog):
                       p.y()+(p.height()-self.height())//2)
 
     def _build(self):
-        bg = "#f2f2f5" if not IS_DARK else t('surface')
-        text_color = "#18181c" if not IS_DARK else t('text')
         root = QVBoxLayout(self)
         root.setContentsMargins(0,0,0,0); root.setSpacing(0)
 
         container = QWidget(); container.setObjectName("cat_container")
-        add_shadow(container, 32, 80 if IS_DARK else 30)
+        add_shadow(container, 32, t('shadow_alpha'))
         cl = QVBoxLayout(container); cl.setContentsMargins(20,20,20,16); cl.setSpacing(12)
         root.addWidget(container)
 
         # 标题行
         title_row = QHBoxLayout()
         title_lbl = QLabel("管理分类")
-        title_lbl.setStyleSheet(f"font-size:16px;font-weight:700;color:{text_color};")
+        title_lbl.setStyleSheet(f"font-size:16px;font-weight:700;color:{t('text')};")
         close_btn = QPushButton("✕"); close_btn.setFixedSize(28,28)
         close_btn.setStyleSheet(f"""QPushButton{{background:{t('btn2_bg')};border:1px solid {t('border')};
             border-radius:8px;color:{t('text_mid')};font-size:13px;}}
@@ -621,7 +620,7 @@ class CategoryDialog(QDialog):
 
         # 新增分类
         form_lbl = QLabel("新增分类")
-        form_lbl.setStyleSheet(f"font-size:13px;font-weight:600;color:{text_color};")
+        form_lbl.setStyleSheet(f"font-size:13px;font-weight:600;color:{t('text')};")
         cl.addWidget(form_lbl)
 
         name_row = QHBoxLayout(); name_row.setSpacing(8)
@@ -650,11 +649,10 @@ class CategoryDialog(QDialog):
     def _reload_list(self):
         self._block_change = True
         self.list_w.clear()
-        text_color = "#18181c" if not IS_DARK else t('text')
         for name, color, icon in db_cats():
             item = QListWidgetItem(name)
             item.setData(Qt.ItemDataRole.UserRole, name)
-            item.setForeground(QColor(text_color))
+            item.setForeground(QColor(t('text')))
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
             self.list_w.addItem(item)
         self._block_change = False

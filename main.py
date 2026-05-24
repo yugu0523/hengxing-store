@@ -12,6 +12,7 @@ from PyQt6.QtGui import QIcon, QColor
 from core.config import get_app_dir, APP_VERSION, UPDATE_CHECK_URL
 from core.db import init_db, _ensure_checkmark, _ensure_arrow_icons
 from core.update import _version_tuple, UpdateChecker, UpdateDialog
+import ui.theme as theme
 from ui.theme import (t, IS_DARK, T, DARK, LIGHT, make_qss, apply_global_qss,
                        CAT_COLORS, CAT_ICONS, _color_for, _icon_for, PINNED_COUNT)
 from ui.widgets import icon_badge, Toast
@@ -207,10 +208,9 @@ class MainWindow(QMainWindow):
             UpdateDialog._apply_update_static(self._update_tmp)
 
     def _toggle_theme(self):
-        global IS_DARK, T
-        IS_DARK = not IS_DARK
-        T.update(DARK if IS_DARK else LIGHT)
-        self.theme_btn.setText("☀️  日间模式" if IS_DARK else "🌙  夜间模式")
+        theme.IS_DARK = not theme.IS_DARK
+        theme.T.update(theme.DARK if theme.IS_DARK else theme.LIGHT)
+        self.theme_btn.setText("☀️  日间模式" if theme.IS_DARK else "🌙  夜间模式")
         self.apply_theme()
 
     def apply_theme(self):

@@ -29,6 +29,7 @@ DARK = {
     "ic_orange": "#3d2a14",
     "ic_purple": "#3d1e28",
     "shadow": "rgba(0,0,0,0.6)",
+    "shadow_alpha": 80,
     "badge_alpha": "0.18",
     "btn2_bg":    "#252529",
     "btn2_hover": "#2e2e35",
@@ -68,6 +69,7 @@ LIGHT = {
     "ic_orange": "#fef3c7",
     "ic_purple": "#ffe0ea",
     "shadow": "rgba(180,100,120,0.12)",
+    "shadow_alpha": 30,
     "badge_alpha": "0.13",
     "btn2_bg":    "#f0f0f6",
     "btn2_hover": "#e8e8f0",
@@ -85,6 +87,11 @@ IS_DARK: bool = False
 
 def t(k):
     return T[k]
+
+
+def is_dark_theme():
+    """返回当前是否为深色模式。从 T 字典动态判断，避免 from-import 导致的变量过期。"""
+    return T['bg'] == DARK['bg']
 
 
 # ── 分类颜色和图标 ──

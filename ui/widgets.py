@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QPoint, QTimer, QPropertyAnimation, QEasingCurve, p
 from PyQt6.QtGui import QPalette, QColor
 
 from core.config import get_app_dir
-from ui.theme import t, T, IS_DARK, CAT_COLORS, _color_for
+from ui.theme import t, T, IS_DARK, CAT_COLORS, _color_for, is_dark_theme
 
 
 # ── 红字委托 ──
@@ -371,7 +371,7 @@ class MsgBox(QDialog):
         icon  = self.ICONS.get(type_, "ℹ️")
         is_question = (type_ == "question")
 
-        bg = "#f2f2f5" if not IS_DARK else t('surface')
+        bg = "#f2f2f5" if not is_dark_theme() else t('surface')
         self.setStyleSheet(f"""
             QDialog {{ background: {bg}; border-radius: 16px; }}
             #msgbox_container {{
@@ -389,7 +389,7 @@ class MsgBox(QDialog):
 
         container = QWidget()
         container.setObjectName("msgbox_container")
-        add_shadow(container, 32, 80 if IS_DARK else 30)
+        add_shadow(container, 32, t('shadow_alpha'))
         cl = QVBoxLayout(container)
         cl.setContentsMargins(0, 0, 0, 0)
         cl.setSpacing(0)

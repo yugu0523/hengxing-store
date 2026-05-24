@@ -15,7 +15,7 @@ from core.db import (db_count, db_all, db_get, db_insert, db_update, db_delete,
                      db_copy_after, db_cats, db_cat_names, PRINT_CART, _IMG_CACHE, _img_dir,
                      _ensure_checkmark)
 from ui.theme import (t, IS_DARK, CAT_COLORS, CAT_ICONS, _icon_for, _color_for,
-                       PINNED_COUNT, make_qss)
+                       PINNED_COUNT, make_qss, is_dark_theme)
 from ui.widgets import (add_shadow, icon_badge, Toast, MsgBox, cat_badge, RedTextDelegate)
 from ui.dialogs import ProductDialog, CategoryDialog
 
@@ -409,13 +409,13 @@ class ProductPage(QWidget):
     def _show_full_image(self, path):
         dlg = QDialog(self.window())
         dlg.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        bg = "#f2f2f5" if not IS_DARK else t('surface')
+        bg = "#f2f2f5" if not is_dark_theme() else t('surface')
         dlg.setStyleSheet(f"QDialog{{background:{bg};border-radius:16px;}}")
         root = QVBoxLayout(dlg); root.setContentsMargins(0,0,0,0)
         container = QFrame(); container.setObjectName("img_container")
-        container.setStyleSheet(f"""QFrame{{background:{'#18181c' if IS_DARK else '#f2f2f5'};
+        container.setStyleSheet(f"""QFrame{{background:{'#18181c' if is_dark_theme() else '#f2f2f5'};
             border-radius:16px;border:none;}}""")
-        add_shadow(container, 32, 80 if IS_DARK else 30)
+        add_shadow(container, 32, t('shadow_alpha'))
         cl = QVBoxLayout(container); cl.setContentsMargins(16,16,16,16); cl.setSpacing(12)
         pix = QPixmap(path)
         max_w, max_h = 600, 500
