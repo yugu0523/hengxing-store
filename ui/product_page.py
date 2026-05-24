@@ -409,8 +409,9 @@ class ProductPage(QWidget):
     def _show_full_image(self, path):
         dlg = QDialog(self.window())
         dlg.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        dlg.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        root = QVBoxLayout(dlg); root.setContentsMargins(8,8,8,8)
+        bg = "#f2f2f5" if not IS_DARK else t('surface')
+        dlg.setStyleSheet(f"QDialog{{background:{bg};border-radius:16px;}}")
+        root = QVBoxLayout(dlg); root.setContentsMargins(0,0,0,0)
         container = QFrame(); container.setObjectName("img_container")
         container.setStyleSheet(f"""QFrame{{background:{'#18181c' if IS_DARK else '#f2f2f5'};
             border-radius:16px;border:none;}}""")

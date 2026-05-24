@@ -356,7 +356,6 @@ class MsgBox(QDialog):
         super().__init__(parent)
         self._confirmed = False
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedWidth(400)
         self._build(type_, title, msg)
         self._center()
@@ -374,7 +373,7 @@ class MsgBox(QDialog):
 
         bg = "#f2f2f5" if not IS_DARK else t('surface')
         self.setStyleSheet(f"""
-            QDialog {{ background: transparent; }}
+            QDialog {{ background: {bg}; border-radius: 16px; }}
             #msgbox_container {{
                 background:{bg};
                 border:2px solid {t('accent')};
@@ -385,7 +384,7 @@ class MsgBox(QDialog):
         """)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
         container = QWidget()

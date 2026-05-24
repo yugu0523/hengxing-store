@@ -246,10 +246,9 @@ class ProductDialog(QDialog):
         self.setWindowTitle("编辑商品" if data else "新增商品")
         self.setFixedSize(480, 680)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         bg = "#e6e6ec" if not IS_DARK else t('surface')
         self.setStyleSheet(f"""
-            QDialog {{ background: transparent; }}
+            QDialog {{ background: {bg}; border-radius: 16px; }}
             #dialog_container {{
                 background: {bg};
                 border: none;
@@ -297,7 +296,7 @@ class ProductDialog(QDialog):
     def _build(self):
         bg = "#e6e6ec" if not IS_DARK else t('surface')
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
         container = QWidget()
@@ -486,8 +485,9 @@ class ProductDialog(QDialog):
             return
         dlg = QDialog(self)
         dlg.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        dlg.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        root = QVBoxLayout(dlg); root.setContentsMargins(8,8,8,8)
+        bg = "#f2f2f5" if not IS_DARK else t('surface')
+        dlg.setStyleSheet(f"QDialog{{background:{bg};border-radius:16px;}}")
+        root = QVBoxLayout(dlg); root.setContentsMargins(0,0,0,0)
         container = QFrame()
         container.setStyleSheet(f"background:{t('card')}; border:2px solid {t('accent')}; border-radius:16px;")
         cl = QVBoxLayout(container); cl.setContentsMargins(16,16,16,16); cl.setSpacing(12)
