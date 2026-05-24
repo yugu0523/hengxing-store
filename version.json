@@ -1,5 +1,5 @@
 {
-    "version": "1.0.48",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.48/default.exe",
-    "notes": "修复 DLL 错误：更新后清理旧 _MEI 临时目录，启动时自动清理残留"
+    "version": "1.0.49",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.49/default.exe",
+    "notes": "修复 v1.0.48 启动崩溃：_MEI 清理时跳过自身目录，避免误删 Qt 插件"
 }

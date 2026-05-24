@@ -252,10 +252,14 @@ if __name__ == "__main__":
             os.remove(old_file)
         except OSError:
             pass
-    # 旧版 PyInstaller 残留的 _MEI 临时目录
+    # 旧版 PyInstaller 残留的 _MEI 临时目录（跳过当前进程自己的）
     import shutil
     temp_dir = os.environ.get('TEMP', '')
+    current_mei = getattr(sys, '_MEIPASS', '') if getattr(sys, 'frozen', False) else ''
+    current_mei_dir = os.path.dirname(current_mei) if current_mei else ''
     for mei_dir in glob.glob(os.path.join(temp_dir, '_MEI*')):
+        if mei_dir == current_mei_dir:
+            continue
         try:
             shutil.rmtree(mei_dir, ignore_errors=True)
         except Exception:
