@@ -497,7 +497,24 @@ class UpdateDialog(QDialog):
         """)
 
     def _do_restart(self):
-        self._apply_update_static(self._tmp_path)
+        # 把临时文件复制到安全位置，防止 temp 目录被清理
+        safe_dir = os.path.join(tempfile.gettempdir(), "hengxing_update")
+        os.makedirs(safe_dir, exist_ok=True)
+        safe_path = os.path.join(safe_dir, "hengxing_update.exe")
+        try:
+            import shutil
+            shutil.copy2(self._tmp_path, safe_path)
+        except Exception:
+            self._progress_lbl.setText("更新文件丢失，请重新下载")
+            self._update_btn.setText("重新下载")
+            self._update_btn.setEnabled(True)
+            try:
+                self._update_btn.clicked.disconnect()
+            except Exception:
+                pass
+            self._update_btn.clicked.connect(self._start_update)
+            return
+        self._apply_update_static(safe_path)
 
     @staticmethod
     def _apply_update_static(new_exe):
