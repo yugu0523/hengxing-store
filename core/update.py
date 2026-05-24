@@ -390,7 +390,8 @@ class UpdateDialog(QDialog):
                 border-radius:3px;
             }}
             QProgressBar::chunk{{
-                background:{accent};
+                background:qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 {accent},stop:1 {accent2});
                 border-radius:3px;
             }}
         """)
