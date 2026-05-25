@@ -1,5 +1,5 @@
 """商品管理页"""
-import os
+import sys, os
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QDialog, QMenu, QSizePolicy,
     QGraphicsDropShadowEffect, QGridLayout,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer, QEvent, QUrl
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize, QTimer, QEvent, QUrl
 from PyQt6.QtGui import QColor, QPixmap, QIcon, QPalette
 
 from core.config import get_app_dir
@@ -31,6 +31,7 @@ class ProductPage(QWidget):
         self._page = 0          # 当前页（0-based）
         self._page_size = 100   # 每页条数
         self._total = 0         # 当前筛选下的总条数
+        self._hide_purchase = True  # 默认隐藏进货价
         # 防抖定时器
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -80,7 +81,7 @@ class ProductPage(QWidget):
         self.search = QLineEdit(); self.search.setObjectName("search_box")
         self.search.setPlaceholderText("🔍   搜索商品名称 / 规格 / 备注")
         self.search.setFixedHeight(40); self.search.setMinimumWidth(220)
-        fr.addWidget(self.search); fr.addSpacing(4)
+        fr.addWidget(self.search); fr.addSpacing(8)
         fr.addStretch()
         self.pill_row = fr
         self.pills = {}
@@ -118,6 +119,27 @@ class ProductPage(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table.itemSelectionChanged.connect(self._on_select)
         self.table.doubleClicked.connect(self.on_edit)
+
+        # ── 进货价表头小眼睛 ──
+        hh = self.table.horizontalHeader()
+        if getattr(sys, 'frozen', False):
+            _eye_dir = sys._MEIPASS
+        else:
+            _eye_dir = get_app_dir()
+        self._eye_close_icon = QIcon(os.path.join(_eye_dir, "eye_close.png"))
+        self._eye_open_icon = QIcon(os.path.join(_eye_dir, "eye_open.png"))
+        self._eye_btn = QPushButton(hh.viewport())
+        self._eye_btn.setIcon(self._eye_close_icon)
+        self._eye_btn.setIconSize(QSize(18, 18))
+        self._eye_btn.setFixedSize(22, 22)
+        self._eye_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._eye_btn.setToolTip("点击显示进货价")
+        self._eye_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; border: none; padding: 0; }}
+            QPushButton:hover {{ background: {t('sel')}; border-radius: 3px; }}
+        """)
+        self._eye_btn.clicked.connect(self._toggle_purchase_price)
+        hh.sectionResized.connect(self._position_eye_btn)
         tcl.addWidget(self.table)
 
         # 空状态
@@ -280,6 +302,26 @@ class ProductPage(QWidget):
             self._page = 0
             self.refresh()
 
+    def _toggle_purchase_price(self):
+        """切换进货价的显隐"""
+        self._hide_purchase = not self._hide_purchase
+        if self._hide_purchase:
+            self._eye_btn.setIcon(self._eye_close_icon)
+            self._eye_btn.setToolTip("点击显示进货价")
+        else:
+            self._eye_btn.setIcon(self._eye_open_icon)
+            self._eye_btn.setToolTip("点击隐藏进货价")
+        self.refresh()
+
+    def _position_eye_btn(self, *args):
+        """将小眼睛定位到进货价表头右侧"""
+        if not hasattr(self, '_eye_btn') or self._eye_btn is None:
+            return
+        hh = self.table.horizontalHeader()
+        x = hh.sectionPosition(5) + hh.sectionSize(5) - 26
+        y = (hh.height() - 22) // 2
+        self._eye_btn.move(x, y)
+
     def _on_search_changed(self):
         """搜索框内容变化时启动防抖计时器"""
         self._search_timer.start()   # 重置为 300ms 后触发
@@ -338,7 +380,8 @@ class ProductPage(QWidget):
             self.table.setCellWidget(r, 0, chk_w)
 
             vals = [str(base_seq + r + 1), spec or "—", name, cat,
-                    f"¥{purchase_price:.2f}", f"¥{price:.2f}",
+                    "****" if self._hide_purchase else f"¥{purchase_price:.2f}",
+                    f"¥{price:.2f}",
                     size or "—", loc or "—", None, remark or ""]
             for c, val in enumerate(vals):
                 if c in (3, 8): continue  # 分类和图片用 widget
@@ -391,6 +434,7 @@ class ProductPage(QWidget):
             self.table.setCellWidget(r, 9, img_w)
 
         self.table.blockSignals(False)
+        self._position_eye_btn()
         self._toggle_empty(self._total == 0)
         self._sel_id = None
         if hasattr(self, '_chk_all'):
@@ -447,6 +491,7 @@ class ProductPage(QWidget):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        self._position_eye_btn()
         if hasattr(self,"empty_w") and self.empty_w.isVisible():
             self.empty_w.setGeometry(self.table.rect())
 

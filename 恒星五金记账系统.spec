@@ -4,7 +4,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('app_icon.ico', '.')],
+    datas=[('app_icon.ico', '.'), ('eye_close.png', '.'), ('eye_open.png', '.')],
     hiddenimports=[
         'core.config', 'core.db', 'core.update',
         'ui.theme', 'ui.widgets', 'ui.dialogs',
