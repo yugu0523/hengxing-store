@@ -1,5 +1,5 @@
 {
-    "version": "1.0.52",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.52/default.exe",
-    "notes": "测试升级流程"
+    "version": "1.0.53",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.53/default.exe",
+    "notes": "修复 Windows 任务栏不显示应用图标"
 }

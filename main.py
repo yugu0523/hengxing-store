@@ -264,20 +264,26 @@ if __name__ == "__main__":
         except Exception:
             pass
 
+    # ── Windows 任务栏图标：必须在 QApplication 之前设置 AppUserModelID ──
+    if sys.platform == "win32":
+        import ctypes
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "hengxing.store.app")
+        except Exception:
+            pass
+
     init_db()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
     # ── 设置应用图标（任务栏 + 窗口标题栏）──
     if getattr(sys, 'frozen', False):
-        # PyInstaller 打包后：图标在临时解压目录
         icon_path = os.path.join(sys._MEIPASS, "app_icon.ico")
     else:
-        # 开发模式：图标在源码目录
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
     if os.path.exists(icon_path):
-        app_icon = QIcon(icon_path)
-        app.setWindowIcon(app_icon)  # 任务栏图标
+        app.setWindowIcon(QIcon(icon_path))
 
     win = MainWindow()
     win.show()
