@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QSizePolicy, QComboBox, QMessageBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QRect, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRect, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QPainterPath
 
 from core.config import get_app_dir
@@ -90,21 +90,19 @@ class LineChart(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        try:
-            self._paint()
-        except Exception:
-            painter = QPainter(self)
-            try:
-                painter.setPen(QColor("#ef4444"))
-                painter.setFont(QFont("Microsoft YaHei", 10))
-                painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
-                                 f"绘图失败\n{traceback.format_exc()[:200]}")
-            finally:
-                painter.end()
-
-    def _paint(self):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            self._paint(painter)
+        except Exception:
+            painter.setPen(QColor("#ef4444"))
+            painter.setFont(QFont("Microsoft YaHei", 10))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                             f"绘图失败\n{traceback.format_exc()[:200]}")
+        finally:
+            painter.end()
+
+    def _paint(self, painter):
         w, h = self.width(), self.height()
 
         if not self._data:
