@@ -1,5 +1,5 @@
 {
-    "version": "1.0.56",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.56/default.exe",
-    "notes": "修复折线图 QPointF 未导入导致图表空白"
+    "version": "1.0.57",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.57/default.exe",
+    "notes": "修复点击稍后重启后再打开仍是旧版本的问题"
 }

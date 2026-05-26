@@ -499,9 +499,23 @@ class UpdateDialog(QDialog):
             self._skip_btn.clicked.disconnect()
         except Exception:
             pass
-        self._skip_btn.clicked.connect(self.reject)
+        self._skip_btn.clicked.connect(self._schedule_later)
         self.raise_()
         self.activateWindow()
+
+    def _schedule_later(self):
+        """稍后重启：把更新文件准备好，后台 bat 等进程退出后自动替换"""
+        safe_dir = os.path.join(tempfile.gettempdir(), "hengxing_update")
+        os.makedirs(safe_dir, exist_ok=True)
+        safe_path = os.path.join(safe_dir, "hengxing_update.exe")
+        try:
+            import shutil
+            shutil.copy2(self._tmp_path, safe_path)
+        except Exception:
+            self.reject()
+            return
+        self._apply_update_static(safe_path, quit_app=False)
+        self.reject()
 
     def _on_fail(self, err):
         self._sim_timer = None
@@ -535,7 +549,7 @@ class UpdateDialog(QDialog):
         self._apply_update_static(safe_path)
 
     @staticmethod
-    def _apply_update_static(new_exe):
+    def _apply_update_static(new_exe, quit_app=True):
         current_exe = os.path.abspath(
             sys.executable if getattr(sys, "frozen", False) else __file__)
         current_pid = os.getpid()
@@ -617,4 +631,5 @@ class UpdateDialog(QDialog):
         subprocess.Popen(["cmd", "/c", bat],
                          creationflags=subprocess.CREATE_NO_WINDOW,
                          close_fds=True)
-        QApplication.quit()
+        if quit_app:
+            QApplication.quit()
