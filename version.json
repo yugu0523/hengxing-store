@@ -1,5 +1,5 @@
 {
-    "version": "1.0.54",
-    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.54/default.exe",
-    "notes": "进货价支持一键显隐，避免客户直接看到进货价"
+    "version": "1.0.55",
+    "download_url": "https://github.com/yugu0523/hengxing-store/releases/download/v1.0.55/default.exe",
+    "notes": "修复数据统计折线图不显示数据的问题"
 }

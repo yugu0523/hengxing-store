@@ -1,5 +1,5 @@
 """数据统计页"""
-import sys, os
+import sys, os, traceback
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
@@ -93,16 +93,27 @@ class LineChart(QWidget):
         try:
             self._paint()
         except Exception:
-            pass
+            painter = QPainter(self)
+            try:
+                painter.setPen(QColor("#ef4444"))
+                painter.setFont(QFont("Microsoft YaHei", 10))
+                painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                                 f"绘图失败\n{traceback.format_exc()[:200]}")
+            finally:
+                painter.end()
 
     def _paint(self):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
+
         if not self._data:
+            painter.setPen(QColor(t('text_sub')))
+            painter.setFont(QFont("Microsoft YaHei", 12))
+            painter.drawText(QRect(0, 0, w, h), Qt.AlignmentFlag.AlignCenter, "暂无数据")
             return
 
-        pad_l, pad_r, pad_t, pad_b = 36, 16, 20, 28
+        pad_l, pad_r, pad_t, pad_b = 38, 16, 20, 28
         chart_w = max(w - pad_l - pad_r, 1)
         chart_h = max(h - pad_t - pad_b, 1)
         labels = [d[0] for d in self._data]
@@ -116,6 +127,7 @@ class LineChart(QWidget):
         txt_c  = QColor(t('text'))
         painter.setFont(QFont("Microsoft YaHei", 8))
 
+        # Y 轴刻度
         steps = 4
         for i in range(steps + 1):
             y = pad_t + int(chart_h * (steps - i) / steps)
@@ -126,18 +138,29 @@ class LineChart(QWidget):
             painter.setPen(QPen(bdr_c, 1, Qt.PenStyle.DashLine))
             painter.drawLine(pad_l, y, w - pad_r, y)
 
+        # X 轴标签
         painter.setPen(mid_c)
-        for i, lbl in enumerate(labels):
-            x = pad_l + int(i * chart_w / (n - 1)) if n > 1 else pad_l + chart_w // 2
+        if n == 1:
+            x = pad_l + chart_w // 2
             painter.drawText(QRect(x - 20, h - pad_b + 4, 40, 18),
-                             Qt.AlignmentFlag.AlignCenter, lbl)
+                             Qt.AlignmentFlag.AlignCenter, labels[0])
+        else:
+            for i, lbl in enumerate(labels):
+                x = pad_l + int(i * chart_w / (n - 1))
+                painter.drawText(QRect(x - 20, h - pad_b + 4, 40, 18),
+                                 Qt.AlignmentFlag.AlignCenter, lbl)
 
+        # 数据点坐标
         pts = []
         for i, v in enumerate(values):
-            x = pad_l + int(i * chart_w / (n - 1)) if n > 1 else pad_l + chart_w // 2
+            if n == 1:
+                x = pad_l + chart_w // 2
+            else:
+                x = pad_l + int(i * chart_w / (n - 1))
             y = pad_t + chart_h - int(v / max_v * chart_h)
             pts.append(QPointF(x, y))
 
+        # 填充区域
         path = QPainterPath()
         path.moveTo(pts[0].x(), pad_t + chart_h)
         for p in pts:
@@ -147,10 +170,13 @@ class LineChart(QWidget):
         fill = QColor(accent); fill.setAlpha(28)
         painter.fillPath(path, fill)
 
-        painter.setPen(QPen(accent, 2.5))
-        for i in range(len(pts) - 1):
-            painter.drawLine(pts[i], pts[i + 1])
+        # 折线
+        if n > 1:
+            painter.setPen(QPen(accent, 2.5))
+            for i in range(len(pts) - 1):
+                painter.drawLine(pts[i], pts[i + 1])
 
+        # 数据点 + 数值标签
         for p, v in zip(pts, values):
             painter.setBrush(QBrush(accent))
             painter.setPen(QPen(QColor("white"), 1.8))
