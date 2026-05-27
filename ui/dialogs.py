@@ -370,12 +370,12 @@ class ProductDialog(QDialog):
         self.e_size = self._inp("")
         add_row_2("分类  *", self.e_cat, "单位", self.e_size)
 
-        # 第3行：零售价 | 进货价（同行）
+        # 第3行：进货价 | 零售价（同行）
         self.e_price = self._inp("")
         self.e_price.setFixedHeight(38)
         self.e_purchase_price = self._inp("")
         self.e_purchase_price.setFixedHeight(38)
-        add_row_2("零售价  *", self.e_price, "进货价", self.e_purchase_price)
+        add_row_2("进货价", self.e_purchase_price, "零售价  *", self.e_price)
 
         # 第4行：存放位置 | 备注
         self.e_loc = self._inp("")
