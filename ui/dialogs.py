@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QAbstractItemView,
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QColor
+from PyQt6.QtGui import QPixmap, QColor, QBitmap, QPainter
 
 from core.config import get_app_dir, APP_VERSION, UPDATE_CHECK_URL
 from core.db import (db_cat_names, db_cat_add, db_cat_update, db_cat_reorder,
@@ -245,15 +245,22 @@ class ProductDialog(QDialog):
         super().__init__(parent)
         self.data = data
         self.setWindowTitle("编辑商品" if data else "新增商品")
-        self.setFixedSize(480, 680)
+        self.setFixedSize(640, 580)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
         bg = "#e6e6ec" if not is_dark_theme() else t('surface')
+        bmp = QBitmap(self.size())
+        bmp.fill(Qt.GlobalColor.color0)
+        _p = QPainter(bmp)
+        _p.setBrush(Qt.GlobalColor.color1)
+        _p.setPen(Qt.PenStyle.NoPen)
+        _p.drawRoundedRect(self.rect(), 16, 16)
+        _p.end()
+        self.setMask(bmp)
         self.setStyleSheet(f"""
-            QDialog {{ background: {bg}; border-radius: 16px; }}
+            QDialog {{ background: {bg}; }}
             #dialog_container {{
                 background: {bg};
                 border: none;
-                border-radius: 16px;
             }}
             QWidget {{ background: transparent; color: {t('text')}; }}
             QScrollArea {{ background: {bg}; border: none; }}
@@ -261,10 +268,10 @@ class ProductDialog(QDialog):
             QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox {{
                 background: {t('input_bg')};
                 border: 2px solid {'#a8a8c8' if not is_dark_theme() else t('input_border')};
-                border-radius: 17px;
+                border-radius: 19px;
                 color: {t('text')};
                 padding: 0 14px;
-                font-size: 13px;
+                font-size: 15px;
                 font-family: "Microsoft YaHei";
             }}
             QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {{
@@ -292,7 +299,7 @@ class ProductDialog(QDialog):
 
     def _inp(self, ph=""):
         w = QLineEdit(); w.setObjectName("form_input")
-        w.setPlaceholderText(ph); w.setFixedHeight(34); return w
+        w.setPlaceholderText(ph); w.setFixedHeight(38); return w
 
     def _build(self):
         bg = "#e6e6ec" if not is_dark_theme() else t('surface')
@@ -308,11 +315,27 @@ class ProductDialog(QDialog):
         add_shadow(container, 32, t('shadow_alpha'))
         root.addWidget(container)
 
-        # 顶部粉色条
-        bar = QWidget()
-        bar.setFixedHeight(4)
-        bar.setStyleSheet(f"background:{t('accent')}; border-radius:16px 16px 0 0;")
-        cl.addWidget(bar)
+        # 标题栏
+        title_bar = QWidget()
+        title_bar.setFixedHeight(44)
+        title_bar.setStyleSheet(f"background:{bg};")
+        tbl = QHBoxLayout(title_bar)
+        tbl.setContentsMargins(20, 0, 12, 0)
+        title_text = QLabel("编辑商品" if self.data else "新增商品")
+        title_text.setStyleSheet(f"color:{t('text')};font-size:16px;font-weight:700;background:transparent;")
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setStyleSheet(f"""QPushButton{{background:{t('btn2_bg')};border:1px solid {t('border')};
+            border-radius:8px;color:{t('text_mid')};font-size:13px;}}
+            QPushButton:hover{{background:{t('danger')};color:white;}}""")
+        close_btn.clicked.connect(self.reject)
+        tbl.addWidget(title_text); tbl.addStretch(); tbl.addWidget(close_btn)
+        cl.addWidget(title_bar)
+
+        # 分割线
+        sep = QWidget(); sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background:{t('border')};")
+        cl.addWidget(sep)
 
         # 表单
         sa = QScrollArea(); sa.setWidgetResizable(True)
@@ -321,37 +344,43 @@ class ProductDialog(QDialog):
         fw.setStyleSheet(f"background:{bg};")
         fl = QVBoxLayout(fw); fl.setContentsMargins(24,16,24,10); fl.setSpacing(10)
 
-        def add_field(lbl_text, widget):
-            lbl = QLabel(lbl_text)
-            lbl.setStyleSheet(f"color:{t('text_mid')};font-size:11px;font-weight:600;")
-            fl.addWidget(lbl); fl.addWidget(widget)
+        def field_lbl(text):
+            l = QLabel(text)
+            l.setStyleSheet(f"color:{t('text_mid')};font-size:13px;font-weight:600;")
+            return l
 
+        def add_row_2(lbl_l, w_l, lbl_r, w_r):
+            """两列一行：左字段 + 右字段"""
+            row = QHBoxLayout(); row.setSpacing(12)
+            col_l = QVBoxLayout(); col_l.setSpacing(4)
+            col_l.addWidget(field_lbl(lbl_l)); col_l.addWidget(w_l)
+            col_r = QVBoxLayout(); col_r.setSpacing(4)
+            col_r.addWidget(field_lbl(lbl_r)); col_r.addWidget(w_r)
+            row.addLayout(col_l); row.addLayout(col_r)
+            fl.addLayout(row)
+
+        # 第1行：商品名称 | 规格尺寸
         self.e_name = self._inp("请输入商品名称")
-        add_field("商品名称  *", self.e_name)
-
         self.e_spec = self._inp("")
-        add_field("规格尺寸", self.e_spec)
+        add_row_2("商品名称  *", self.e_name, "规格尺寸", self.e_spec)
 
+        # 第2行：分类 | 单位
         self.e_cat = DropdownSelect(db_cat_names())
-        self.e_cat.setFixedHeight(34)
-        add_field("分类  *", self.e_cat)
-
-        self.e_purchase_price = self._inp("")
-        self.e_purchase_price.setFixedHeight(34)
-        add_field("进货价", self.e_purchase_price)
-
-        self.e_price = self._inp("")
-        self.e_price.setFixedHeight(34)
-        add_field("零售价  *", self.e_price)
-
+        self.e_cat.setFixedHeight(38)
         self.e_size = self._inp("")
-        add_field("单位", self.e_size)
+        add_row_2("分类  *", self.e_cat, "单位", self.e_size)
 
+        # 第3行：零售价 | 进货价（同行）
+        self.e_price = self._inp("")
+        self.e_price.setFixedHeight(38)
+        self.e_purchase_price = self._inp("")
+        self.e_purchase_price.setFixedHeight(38)
+        add_row_2("零售价  *", self.e_price, "进货价", self.e_purchase_price)
+
+        # 第4行：存放位置 | 备注
         self.e_loc = self._inp("")
-        add_field("存放位置", self.e_loc)
-
         self.e_remark = self._inp("其他说明（可选）")
-        add_field("备注", self.e_remark)
+        add_row_2("存放位置", self.e_loc, "备注", self.e_remark)
 
         # 图片
         img_lbl = QLabel("商品图片")
@@ -394,25 +423,24 @@ class ProductDialog(QDialog):
 
         # 按钮栏
         bb = QWidget(); bb.setFixedHeight(56)
-        bb.setStyleSheet(f"background:{bg}; border-top:1px solid {t('border')};"
-                         f"border-radius:0 0 16px 16px;")
+        bb.setStyleSheet(f"background:{bg}; border-top:1px solid {t('border')};")
         bl = QHBoxLayout(bb); bl.setContentsMargins(20,0,20,0)
         bl.addStretch()
         cancel = QPushButton("取消")
-        cancel.setFixedSize(88,34)
+        cancel.setFixedSize(96,38)
         cancel.setStyleSheet(f"""QPushButton{{
             background:{t('btn2_bg')}; border:1.5px solid {t('border')};
-            border-radius:14px; color:{t('btn2_text')}; font-size:13px;
+            border-radius:14px; color:{t('btn2_text')}; font-size:14px;
         }}
         QPushButton:hover{{
             background:{t('btn2_hover')}; color:{t('text')}; border-color:{t('accent')};
         }}""")
         cancel.clicked.connect(self.reject)
         save = QPushButton("保存")
-        save.setFixedSize(96,34)
+        save.setFixedSize(106,38)
         save.setStyleSheet(f"""QPushButton{{
             background:{t('accent')}; border:none;
-            border-radius:14px; color:white; font-size:13px; font-weight:700;
+            border-radius:14px; color:white; font-size:14px; font-weight:700;
         }}
         QPushButton:hover{{ background:{t('accent_h')}; }}""")
         save.clicked.connect(self._save)
@@ -533,9 +561,10 @@ class CategoryDialog(QDialog):
         self.setWindowTitle("管理分类")
         self.setFixedSize(440, 500)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
-        bg = "#f2f2f5" if not is_dark_theme() else t('surface')
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        bg = "#e6e6ec" if not is_dark_theme() else t('surface')
         self.setStyleSheet(f"""
-            QDialog {{ background: {bg}; border-radius: 16px; }}
+            QDialog {{ background: transparent; border-radius: 16px; }}
             #cat_container {{
                 background: {bg};
                 border: none;
@@ -594,9 +623,24 @@ class CategoryDialog(QDialog):
         title_row.addWidget(title_lbl); title_row.addStretch(); title_row.addWidget(close_btn)
         cl.addLayout(title_row)
 
-        # 分类列表（可拖拽排序，双击直接 inline 编辑）
+        # ── 新增分类（移到顶部）──
+        name_row = QHBoxLayout(); name_row.setSpacing(8)
+        self.inp_name = QLineEdit(); self.inp_name.setPlaceholderText("分类名称")
+        self.inp_name.setFixedHeight(36)
+        btn_save = QPushButton("新增")
+        btn_save.setFixedHeight(36); btn_save.setFixedWidth(72)
+        btn_save.setStyleSheet(f"""QPushButton{{background:{t('accent')};border:none;
+            border-radius:14px;color:white;font-size:13px;font-weight:700;}}
+            QPushButton:hover{{background:{t('accent_h')};}}""")
+        btn_save.clicked.connect(self._save_cat)
+        name_row.addWidget(self.inp_name); name_row.addWidget(btn_save)
+        cl.addLayout(name_row)
+
+        cl.addSpacing(6)
+
+        # ── 管理分类列表（移到下方）──
         self.list_w = QListWidget()
-        self.list_w.setFixedHeight(220)
+        self.list_w.setFixedHeight(330)
         self.list_w.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.list_w.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.list_w.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
@@ -610,41 +654,14 @@ class CategoryDialog(QDialog):
         self.btn_del_cat = QPushButton("删除")
         self.btn_del_cat.setObjectName("btn_danger"); self.btn_del_cat.setFixedHeight(34)
         self.btn_del_cat.clicked.connect(self._delete_cat)
-        op_row.addStretch(); op_row.addWidget(self.btn_del_cat)
-        cl.addLayout(op_row)
-
-        # 分割线
-        line = QFrame(); line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet(f"background:{t('border')};max-height:1px;")
-        cl.addWidget(line)
-
-        # 新增分类
-        form_lbl = QLabel("新增分类")
-        form_lbl.setStyleSheet(f"font-size:13px;font-weight:600;color:{t('text')};")
-        cl.addWidget(form_lbl)
-
-        name_row = QHBoxLayout(); name_row.setSpacing(8)
-        self.inp_name = QLineEdit(); self.inp_name.setPlaceholderText("分类名称")
-        self.inp_name.setFixedHeight(36)
-        name_row.addWidget(self.inp_name)
-        cl.addLayout(name_row)
-
-        save_row = QHBoxLayout(); save_row.setSpacing(8)
-        btn_cancel_edit = QPushButton("取消")
+        btn_cancel_edit = QPushButton("关闭")
         btn_cancel_edit.setFixedHeight(34); btn_cancel_edit.setFixedWidth(90)
         btn_cancel_edit.setStyleSheet(f"""QPushButton{{background:{t('btn2_bg')};border:1.5px solid {t('border')};
             border-radius:14px;color:{t('btn2_text')};font-size:13px;}}
             QPushButton:hover{{background:{t('btn2_hover')};color:{t('text')};}}""")
         btn_cancel_edit.clicked.connect(self.accept)
-        btn_save = QPushButton("新增")
-        btn_save.setFixedHeight(34); btn_save.setFixedWidth(90)
-        btn_save.setStyleSheet(f"""QPushButton{{background:{t('accent')};border:none;
-            border-radius:14px;color:white;font-size:13px;font-weight:700;}}
-            QPushButton:hover{{background:{t('accent_h')};}}""")
-        btn_save.clicked.connect(self._save_cat)
-        save_row.addStretch()
-        save_row.addWidget(btn_cancel_edit); save_row.addWidget(btn_save)
-        cl.addLayout(save_row)
+        op_row.addStretch(); op_row.addWidget(self.btn_del_cat); op_row.addWidget(btn_cancel_edit)
+        cl.addLayout(op_row)
 
     def _reload_list(self):
         self._block_change = True
@@ -703,6 +720,8 @@ class CategoryDialog(QDialog):
         if not item:
             MsgBox.info(self.parent(), "提示", "请先选中一个分类再删除。"); return
         name = item.data(Qt.ItemDataRole.UserRole)
+        if name == "其他":
+            MsgBox.warning(self.parent(), "无法删除", "「其他」是默认分类，不能被删除。"); return
         if MsgBox.confirm(self.parent(), "确认删除",
                 f"确定删除分类【{name}】吗？\n该分类下的商品将归入「其他」。"):
             self._block_change = True
